@@ -1,0 +1,101 @@
+export type Tier = 'normal' | 'small' | 'whale'
+export type NodeKind = 'normal' | 'core' | 'center'
+export type CurrencyKind = 'usd' | 'diamond' | 'ad'
+
+export interface LossBand {
+  minRatio: number
+  rate: number
+}
+
+export interface BattleConfig {
+  baseIdolPower: number
+  tierMultipliers: Record<Tier, number>
+  alpha: number
+  beta: number
+  randomMin: number
+  randomMax: number
+  styleAdvantage: number
+  homeLossFactor: number
+  lossBands: LossBand[]
+}
+
+export interface FanConfig {
+  capacity: number
+  minDeploy: number
+  maxDeploy: number
+  naturalCapacityPerDay: number
+  attackCooldownMinutes: number
+  formationSlots: number
+  dailyActionLimit: number | null
+}
+
+export interface ScoreConfig {
+  attackWinBase: number
+  attackLoss: number
+  holdPerHourBase: number
+  nodeMultipliers: Record<NodeKind, number>
+  defenderPersonalWinBase: number
+  defenderPersonalLoss: number
+  defenderPersonalDailyCap: number
+}
+
+export interface RecoveryOffer {
+  id: string
+  label: string
+  mode: 'program' | 'instant'
+  usdCost: number
+  diamondCost: number
+  adCost: number
+  immediateCapacityRate: number
+  pulseCapacityRates: Array<{ afterMinutes: number; rate: number }>
+  continuousCapacityRate: number
+  durationMinutes: number
+  fixedFans: number
+  dailyPurchaseLimit: number | null
+}
+
+export interface TierPurchasePolicy {
+  dailyUsdBudget: number
+  dailyDiamondBudget: number
+  useAds: boolean
+  supplyPriority: string[]
+}
+
+export interface SupplyConfig {
+  offers: RecoveryOffer[]
+  adDailyLimit: number
+  diamondUsdRate: number | null
+  purchasePolicies: Record<Tier, TierPurchasePolicy>
+}
+
+export interface GuildConfig {
+  id: string
+  name: string
+  roster: Record<Tier, number>
+  deployFans: Record<NodeKind, number>
+  priorities: Record<NodeKind, number>
+}
+
+export interface Scenario {
+  battle: BattleConfig
+  fans: FanConfig
+  score: ScoreConfig
+  supply: SupplyConfig
+  season: {
+    days: number
+    centerUnlockDay: number
+    nodeCounts: Record<NodeKind, number>
+  }
+  guilds: GuildConfig[]
+  simulation: { runs: number; seed: number; maxEventsPerDay: number }
+}
+
+export interface ValidationIssue {
+  path: string
+  message: string
+}
+
+export interface ValidationResult {
+  valid: boolean
+  issues: ValidationIssue[]
+}
