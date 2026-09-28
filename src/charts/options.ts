@@ -116,6 +116,29 @@ export function buildBattleOption(
 ): DashboardChartOption {
   return {
     ...baseOption(),
+    tooltip: {
+      trigger: 'axis',
+      confine: false,
+      formatter: (parameters: unknown) => {
+        const list = Array.isArray(parameters) ? parameters : [parameters]
+        const rows = list.filter((item): item is {
+          seriesName: string
+          value: [number, number]
+        } => Boolean(
+          item && typeof item === 'object' && 'seriesName' in item && 'value' in item,
+        ))
+        const battle = rows[0]?.value?.[0] ?? 0
+        return [
+          `<strong>第 ${battle} 场</strong>`,
+          ...rows.map((row) => {
+            const value = row.value[1]
+            return row.seriesName.endsWith('守方粉丝')
+              ? `${row.seriesName}：${Math.round(value).toLocaleString('zh-CN')}`
+              : `${row.seriesName}：${(value * 100).toFixed(1)}%`
+          }),
+        ].join('<br/>')
+      },
+    },
     xAxis: { type: 'value', name: '场次', minInterval: 1 },
     yAxis: [
       { type: 'value', name: '百分比', min: 0, max: 1, axisLabel: { formatter: '{value}' } },
@@ -217,7 +240,19 @@ export function buildCumulativeSpendOption(
           Boolean(item && typeof item === 'object' && 'seriesName' in item && 'value' in item)
         ))
         const minute = rows[0]?.value?.[0] ?? 0
-        return [`<strong>${minute} 分钟</strong>`, ...rows.map((row) => `${row.seriesName}：${row.value[1]}`)].join('<br/>')
+        return [
+          `<strong>${minute.toLocaleString('zh-CN')} 分钟</strong>`,
+          ...rows.map((row) => {
+            const value = row.value[1]
+            if (row.seriesName.endsWith('现金')) {
+              return `${row.seriesName}：$${value.toFixed(2)}`
+            }
+            if (row.seriesName.endsWith('钻石')) {
+              return `${row.seriesName}：${Math.round(value).toLocaleString('zh-CN')} 钻`
+            }
+            return `${row.seriesName}：${Math.round(value).toLocaleString('zh-CN')} 次`
+          }),
+        ].join('<br/>')
       },
     },
     series,

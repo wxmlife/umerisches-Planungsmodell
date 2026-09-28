@@ -37,4 +37,30 @@ describe('sensitivity analysis', () => {
     expect(deriveNodeTargetThreshold(points, { normal: 20, core: 2, center: 1 })).toBe(10)
     expect(deriveNodeTargetThreshold(points, { normal: 21, core: 2, center: 1 })).toBeNull()
   })
+
+  it('reports incremental score per USD against the zero-budget point', async () => {
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    scenario.season.days = 1
+    scenario.season.centerUnlockDay = 1
+    scenario.season.nodeCounts = { normal: 4, core: 1, center: 0 }
+    const result = await runSensitivity(scenario, {
+      parameter: 'supply.dailyUsdBudget',
+      metric: 'incrementalScorePerUsd',
+      min: 0,
+      max: 5,
+      step: 5,
+      targetGuildId: 'A',
+      targetTier: 'whale',
+      runs: 2,
+      seed: 23,
+    })
+    const [baseline, paid] = result.points
+
+    expect(baseline.metricValue).toBe(0)
+    expect(paid.usd).toBeGreaterThan(0)
+    expect(paid.metricValue).toBeCloseTo(
+      (paid.finalScore - baseline.finalScore) / paid.usd,
+      10,
+    )
+  })
 })

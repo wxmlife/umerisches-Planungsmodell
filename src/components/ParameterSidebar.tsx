@@ -9,6 +9,7 @@ export interface ParameterSidebarProps {
   analysis?: SimulatorAnalysis
   onSetNumber: (path: string, value: number) => void
   onSetNullableNumber?: (path: string, value: number | null) => void
+  onSetBoolean?: (path: string, value: boolean) => void
   onSetAnalysisNumber?: (path: string, value: number) => void
   onSetAnalysisChoice?: (path: 'targetGuildId' | 'targetTier', value: string) => void
 }
@@ -25,6 +26,7 @@ export function ParameterSidebar({
   analysis,
   onSetNumber,
   onSetNullableNumber,
+  onSetBoolean,
   onSetAnalysisNumber,
   onSetAnalysisChoice,
 }: ParameterSidebarProps) {
@@ -169,6 +171,17 @@ export function ParameterSidebar({
         {(Object.keys(TIER_LABELS) as Tier[]).map((tier) => (
           <fieldset key={tier} className="parameter-subgroup">
             <legend>{TIER_LABELS[tier]}购买策略</legend>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={scenario.supply.purchasePolicies[tier].useAds}
+                onChange={(event) => onSetBoolean?.(
+                  `supply.purchasePolicies.${tier}.useAds`,
+                  event.target.checked,
+                )}
+              />
+              {TIER_LABELS[tier]}使用奖励广告
+            </label>
             {control(`supply.purchasePolicies.${tier}.dailyUsdBudget`, `${TIER_LABELS[tier]}每日美元预算`, scenario.supply.purchasePolicies[tier].dailyUsdBudget, 0, 1000, 1)}
             {control(`supply.purchasePolicies.${tier}.dailyDiamondBudget`, `${TIER_LABELS[tier]}每日钻石预算`, scenario.supply.purchasePolicies[tier].dailyDiamondBudget, 0, 100_000, 10)}
           </fieldset>

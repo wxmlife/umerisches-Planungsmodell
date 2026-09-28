@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react'
-import * as echarts from 'echarts'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { init, use as registerEChartsModules } from 'echarts/core'
+import { SVGRenderer } from 'echarts/renderers'
 import type { DashboardChartOption } from '../charts/options'
+
+registerEChartsModules([
+  BarChart,
+  LineChart,
+  GridComponent,
+  LegendComponent,
+  TooltipComponent,
+  SVGRenderer,
+])
 
 export interface EChartProps {
   option: DashboardChartOption
@@ -14,7 +26,7 @@ export function EChart({ option, label, className = '' }: EChartProps) {
   useEffect(() => {
     const container = containerRef.current
     if (!container || (container.clientWidth === 0 && container.clientHeight === 0)) return undefined
-    const chart = echarts.init(container, undefined, { renderer: 'svg' })
+    const chart = init(container, undefined, { renderer: 'svg' })
     chart.setOption(option)
     const observer = new ResizeObserver(() => chart.resize())
     observer.observe(container)

@@ -2,7 +2,11 @@ import type { MonteCarloResult } from '../domain/aggregate'
 import { createSeededRng } from '../domain/rng'
 import type { SeasonResult } from '../domain/season'
 import { runSeason } from '../domain/season'
-import type { SensitivityResult } from '../domain/sensitivity'
+import type {
+  SensitivityMetric,
+  SensitivityParameter,
+  SensitivityResult,
+} from '../domain/sensitivity'
 import type {
   NodeKind,
   Scenario,
@@ -18,7 +22,15 @@ export interface SimulatorAnalysis {
   sweepMin: number
   sweepMax: number
   sweepStep: number
+  sensitivityParameter: SensitivityParameter
+  sensitivityMetric: SensitivityMetric
 }
+
+export type SimulatorAnalysisChoice =
+  | 'targetGuildId'
+  | 'targetTier'
+  | 'sensitivityParameter'
+  | 'sensitivityMetric'
 
 export interface SimulatorState {
   draft: Scenario
@@ -37,8 +49,9 @@ export interface SimulatorState {
 export type SimulatorAction =
   | { type: 'set-number'; path: string; value: number }
   | { type: 'set-nullable-number'; path: string; value: number | null }
+  | { type: 'set-boolean'; path: string; value: boolean }
   | { type: 'set-analysis-number'; path: string; value: number }
-  | { type: 'set-analysis-choice'; path: 'targetGuildId' | 'targetTier'; value: string }
+  | { type: 'set-analysis-choice'; path: SimulatorAnalysisChoice; value: string }
   | { type: 'deterministic-result'; scenario: Scenario; result: SeasonResult }
   | { type: 'run-start'; runId: string }
   | { type: 'run-progress'; runId: string; completed: number; total: number }
@@ -67,7 +80,7 @@ function writePath<T>(source: T, path: string, value: unknown): T {
 function updateDraft(
   state: SimulatorState,
   path: string,
-  value: number | null,
+  value: number | null | boolean,
 ): SimulatorState {
   const draft = writePath(state.draft, path, value)
   const validation = validateScenario(draft)
@@ -76,6 +89,11 @@ function updateDraft(
     draft,
     validation,
     lastValidScenario: validation.valid ? draft : state.lastValidScenario,
+    monteCarlo: validation.valid ? null : state.monteCarlo,
+    sensitivity: validation.valid ? null : state.sensitivity,
+    runStatus: validation.valid ? 'idle' : state.runStatus,
+    progress: validation.valid ? null : state.progress,
+    activeRunId: validation.valid ? null : state.activeRunId,
     stale: true,
   }
 }
@@ -95,6 +113,8 @@ export function createSimulatorState(scenario: Scenario): SimulatorState {
       sweepMin: 0,
       sweepMax: 20,
       sweepStep: 5,
+      sensitivityParameter: 'supply.dailyUsdBudget',
+      sensitivityMetric: 'firstPlaceProbability',
     },
     deterministic: runSeason(
       draft,
@@ -133,6 +153,9 @@ export function simulatorReducer(
   if (action.type === 'set-nullable-number') {
     return updateDraft(state, action.path, action.value)
   }
+  if (action.type === 'set-boolean') {
+    return updateDraft(state, action.path, action.value)
+  }
   if (action.type === 'set-analysis-number') {
     return {
       ...state,
@@ -142,6 +165,7 @@ export function simulatorReducer(
   if (action.type === 'set-analysis-choice') {
     return {
       ...state,
+      sensitivity: null,
       analysis: {
         ...state.analysis,
         [action.path]: action.value,

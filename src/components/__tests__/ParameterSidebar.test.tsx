@@ -22,6 +22,7 @@ function SimulatorHarness() {
         scenario={state.draft}
         validation={state.validation}
         onSetNumber={(path, value) => dispatch({ type: 'set-number', path, value })}
+        onSetBoolean={(path, value) => dispatch({ type: 'set-boolean', path, value })}
       />
       <RunToolbar
         valid={state.validation.valid}
@@ -53,5 +54,22 @@ describe('ParameterSidebar', () => {
     for (const heading of ['战斗', '损耗', '粉丝', '地图与积分', '公会', '商城', '模拟']) {
       expect(screen.getByText(heading)).toBeVisible()
     }
+  })
+
+  it('lets the designer enable reward ads for each player tier', async () => {
+    const user = userEvent.setup()
+    render(<ParameterSidebarHarness />)
+
+    const shopSection = screen.getByText('商城').closest('details')
+    expect(shopSection).not.toHaveAttribute('open')
+    await user.click(screen.getByText('商城'))
+    expect(shopSection).toHaveAttribute('open')
+
+    const toggles = screen.getAllByRole('checkbox', { name: /使用奖励广告/ })
+    expect(toggles).toHaveLength(3)
+    expect(toggles[0]).not.toBeChecked()
+    await user.click(toggles[0])
+    expect(toggles[0]).toBeChecked()
+    expect(shopSection).toHaveAttribute('open')
   })
 })

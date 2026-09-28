@@ -1,10 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { buildCumulativeSpendSeries } from '../../charts/cumulativeSpend'
 import { SAMPLE_SPEND_EVENTS } from '../../test/fixtures'
-import {
-  buildCumulativeSpendSeries,
-  CumulativeSpendPanel,
-} from '../CumulativeSpendPanel'
+import { CumulativeSpendPanel } from '../CumulativeSpendPanel'
 
 describe('CumulativeSpendPanel', () => {
   it('keeps cash, diamonds, and ads separate without a diamond rate', () => {

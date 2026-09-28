@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 export interface NumberSliderProps {
   path: string
@@ -21,14 +21,16 @@ export function NumberSlider({
   error,
   onChange,
 }: NumberSliderProps) {
-  const [textValue, setTextValue] = useState(String(value))
-
-  useEffect(() => {
-    setTextValue(String(value))
-  }, [value])
+  const [inputState, setInputState] = useState({
+    sourceValue: value,
+    text: String(value),
+  })
+  const textValue = inputState.sourceValue === value
+    ? inputState.text
+    : String(value)
 
   const updateFromText = (nextText: string) => {
-    setTextValue(nextText)
+    setInputState({ sourceValue: value, text: nextText })
     if (nextText.trim() === '') return
     const parsed = Number(nextText)
     if (Number.isFinite(parsed)) onChange(path, parsed)
@@ -60,7 +62,7 @@ export function NumberSlider({
         value={Math.min(max, Math.max(min, value))}
         onChange={(event) => {
           const parsed = Number(event.target.value)
-          setTextValue(event.target.value)
+          setInputState({ sourceValue: value, text: event.target.value })
           onChange(path, parsed)
         }}
       />

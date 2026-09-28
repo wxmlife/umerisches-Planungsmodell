@@ -67,4 +67,28 @@ describe('SupplyEfficiencyPanel', () => {
     )
     expect(screen.getByText('资源足够，行动容量不足')).toBeVisible()
   })
+
+  it('does not label a non-budget sensitivity axis as daily spend', () => {
+    const alphaSensitivity: SensitivityResult = {
+      ...sensitivity,
+      request: {
+        ...sensitivity.request,
+        parameter: 'battle.alpha',
+        min: 1,
+        max: 2,
+        step: 0.5,
+      },
+    }
+    render(
+      <SupplyEfficiencyPanel
+        guildId="A"
+        season={season}
+        sensitivity={alphaSensitivity}
+        targetNodes={{ normal: 12, core: 1, center: 0 }}
+      />,
+    )
+
+    expect(screen.getAllByText('需运行日预算扫描')).toHaveLength(3)
+    expect(screen.queryByText('$5.00 / 日')).not.toBeInTheDocument()
+  })
 })

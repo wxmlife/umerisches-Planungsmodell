@@ -6,6 +6,7 @@ import type { WorkerRequest, WorkerResponse } from '../worker/protocol'
 import {
   createSimulatorState,
   simulatorReducer,
+  type SimulatorAnalysisChoice,
 } from './simulatorReducer'
 
 let runSequence = 0
@@ -110,8 +111,8 @@ export function useSimulator() {
       type: 'sensitivity',
       scenario: state.lastValidScenario,
       request: {
-        parameter: 'supply.dailyUsdBudget',
-        metric: 'firstPlaceProbability',
+        parameter: state.analysis.sensitivityParameter,
+        metric: state.analysis.sensitivityMetric,
         min: state.analysis.sweepMin,
         max: state.analysis.sweepMax,
         step: state.analysis.sweepStep,
@@ -138,12 +139,17 @@ export function useSimulator() {
       path,
       value,
     }),
+    setBoolean: (path: string, value: boolean) => dispatch({
+      type: 'set-boolean',
+      path,
+      value,
+    }),
     setAnalysisNumber: (path: string, value: number) => dispatch({
       type: 'set-analysis-number',
       path,
       value,
     }),
-    setAnalysisChoice: (path: 'targetGuildId' | 'targetTier', value: string) => dispatch({
+    setAnalysisChoice: (path: SimulatorAnalysisChoice, value: string) => dispatch({
       type: 'set-analysis-choice',
       path,
       value,

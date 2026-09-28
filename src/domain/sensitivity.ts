@@ -130,7 +130,7 @@ function buildPoint(
         ? firstPlaceProbability
         : request.metric === 'finalNodeCount'
           ? nodeCounts.normal + nodeCounts.core + nodeCounts.center
-          : target.spend.usd.mean > 0 ? finalScore / target.spend.usd.mean : 0
+          : 0
 
   return {
     x,
@@ -174,6 +174,15 @@ export async function runSensitivity(
     points.push(buildPoint(values[index], request, variant, result))
     hooks.onPointProgress?.(index + 1, values.length)
     if ((index + 1) % 5 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+
+  if (request.metric === 'incrementalScorePerUsd') {
+    const baselineScore = points[0]?.finalScore ?? 0
+    for (const point of points) {
+      point.metricValue = point.usd > 0
+        ? (point.finalScore - baselineScore) / point.usd
+        : 0
+    }
   }
 
   return { request, points, cancelled }
