@@ -29,15 +29,20 @@ export function NumberSlider({
     sourceValue: value,
     text: String(value),
   })
+  // An external edit/reset invalidates the old local text, even when the
+  // shared value later returns to a number this control displayed before.
+  if (inputState.sourceValue !== value) {
+    setInputState({ sourceValue: value, text: String(value) })
+  }
   const textValue = inputState.sourceValue === value
     ? inputState.text
     : String(value)
 
   const updateFromText = (nextText: string) => {
-    setInputState({ sourceValue: value, text: nextText })
-    if (nextText.trim() === '') return
     const parsed = Number(nextText)
-    if (Number.isFinite(parsed)) onChange(path, parsed)
+    const canCommit = nextText.trim() !== '' && Number.isFinite(parsed)
+    setInputState({ sourceValue: canCommit ? parsed : value, text: nextText })
+    if (canCommit) onChange(path, parsed)
   }
 
   return (

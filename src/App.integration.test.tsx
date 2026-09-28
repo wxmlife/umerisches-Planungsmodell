@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkerRequest, WorkerResponse } from './worker/protocol'
 import App from './App'
+import { createFormulaScenario } from './test/fixtures'
+import { createSimulatorState } from './state/simulatorReducer'
+import { createPersistedEnvelope, STORAGE_KEY } from './state/persistence'
 
 class FakeWorker {
   static instances: FakeWorker[] = []
@@ -44,6 +47,35 @@ describe('App integration', () => {
   })
 
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+  it.each(['invalid', 'pending'] as const)('keeps applied guild results while a %s restored draft has a different guild catalog', async mode => {
+    vi.useFakeTimers()
+    const envelope = createPersistedEnvelope(createSimulatorState(createFormulaScenario()))
+    envelope.draftScenario.guilds[0].id = 'X'
+    envelope.draftScenario.guilds[0].name = '公会 X'
+    envelope.analysis.targetGuildId = 'X'
+    if (mode === 'invalid') envelope.draftScenario.battle.formulas.fanLoss = 'currentFans +'
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
+    render(<App />)
+    expect(screen.getByLabelText('目标公会')).toHaveValue('X')
+    const resultGuilds = () => ['节点与粉丝曲线', '补给与效率曲线'].map(title => {
+      const card = screen.getByRole('heading', { name: title }).closest('section')!
+      return card.querySelector('.card-header span')?.textContent
+    })
+    expect(resultGuilds()).toEqual(['A', 'A'])
+    expect(screen.getByRole('img', { name: 'A 的节点、可用粉丝、驻守粉丝和损失粉丝' })).toBeInTheDocument()
+    expect(screen.getByTestId('season-results')).toHaveAttribute('data-stale', 'true')
+    if (mode === 'pending') {
+      await act(async () => { vi.advanceTimersByTime(1) })
+      expect(resultGuilds()).toEqual(['X', 'X'])
+      expect(screen.getByLabelText('目标公会')).toHaveValue('X')
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).analysis.targetGuildId).toBe('X')
+    } else {
+      await act(async () => { vi.advanceTimersByTime(1000) })
+      expect(resultGuilds()).toEqual(['A', 'A'])
+      expect(screen.getByLabelText('目标公会')).toHaveValue('X')
+    }
+  })
 
   it('debounces formula validation for 300 ms while controls stay interactive and results keep applied data', async () => {
     vi.useFakeTimers()

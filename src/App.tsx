@@ -49,6 +49,11 @@ function App() {
   const simulator = useSimulator()
   const { state } = simulator
   const displayScenario = state.appliedScenario
+  // Keep the draft's analysis choice for its future application, while
+  // existing result panels always select a guild in the applied catalog.
+  const resultGuildId = displayScenario.guilds.some(guild => guild.id === state.analysis.targetGuildId)
+    ? state.analysis.targetGuildId
+    : displayScenario.guilds[0]?.id ?? ''
   const busy = state.pendingScenario !== null || state.validatedRevision !== state.revision
   const resultProps = { className: 'result-content', 'data-stale': String(state.stale), 'aria-busy': busy }
   const scannedVariable = state.analysis.sensitivityParameter === 'battle.alpha' ? 'alpha' : state.analysis.sensitivityParameter === 'battle.beta' ? 'beta' : null
@@ -102,9 +107,9 @@ function App() {
           <div {...resultProps} className="result-content dashboard-card--wide" data-testid="season-results"><SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} seasonDays={displayScenario.season.days} /></div>
           <BattleCalibrationPanel scenario={displayScenario} calibration={state.calibration} draftScenario={state.draftScenario} validation={state.validation} formulaErrors={state.formulaErrors} stale={state.stale} pending={busy} onSetNumber={simulator.setNumber} onSetString={simulator.setString} onRestore={simulator.restoreFormula} />
           <div {...resultProps}><DailyBreakdownPanel result={state.deterministic} /></div>
-          <div {...resultProps}><NodeFanPanel result={state.deterministic} guildId={state.analysis.targetGuildId} /></div>
+          <div {...resultProps}><NodeFanPanel result={state.deterministic} guildId={resultGuildId} /></div>
           <div {...resultProps} className="result-content dashboard-card--wide"><RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} /></div>
-          <div {...resultProps} className="result-content dashboard-card--wide"><SupplyEfficiencyPanel guildId={state.analysis.targetGuildId} season={state.deterministic} sensitivity={state.sensitivity} targetNodes={state.analysis.targetNodes} /></div>
+          <div {...resultProps} className="result-content dashboard-card--wide"><SupplyEfficiencyPanel guildId={resultGuildId} season={state.deterministic} sensitivity={state.sensitivity} targetNodes={state.analysis.targetNodes} /></div>
           <CumulativeSpendPanel events={state.deterministic.spendEvents} scenario={displayScenario} stale={state.stale} busy={busy} />
           <div className="dashboard-card--wide">
           {unreferencedParameter ? <p className="scope-note">当前公式未引用该参数；敏感性曲线可能为水平线。</p> : null}
