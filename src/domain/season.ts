@@ -329,6 +329,12 @@ export function runSeason(
     if (minute > endMinute) return
     const existing = scheduledActionMinute.get(player.id)
     if (existing !== undefined && existing <= minute) return
+    if (
+      existing !== undefined
+      && player.economy.availableFans < scenario.fans.minDeploy
+    ) {
+      return
+    }
     scheduledActionMinute.set(player.id, minute)
     queue.push({ minute, priority: ACTION_PRIORITY, kind: 'action', playerId: player.id })
   }
