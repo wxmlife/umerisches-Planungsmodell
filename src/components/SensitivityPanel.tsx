@@ -13,7 +13,7 @@ const PARAMETERS: Array<{ value: SensitivityParameter; label: string }> = [
   { value: 'battle.closeLossRate', label: '惜败损耗率' },
   { value: 'score.coreMultiplier', label: '核心节点倍率' },
   { value: 'score.centerMultiplier', label: '中心节点倍率' },
-  { value: 'supply.dailyUsdBudget', label: '日付费预算' },
+  { value: 'supply.versionUsdBudget', label: '版本付费预算' },
 ]
 
 const METRICS: Array<{ value: SensitivityMetric; label: string }> = [
@@ -26,7 +26,7 @@ const METRICS: Array<{ value: SensitivityMetric; label: string }> = [
 
 export function SensitivityPanel({
   result,
-  parameter = 'supply.dailyUsdBudget',
+  parameter = 'supply.versionUsdBudget',
   metric = 'firstPlaceProbability',
   onParameterChange,
   onMetricChange,

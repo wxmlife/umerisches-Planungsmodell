@@ -130,7 +130,7 @@ export function createSimulatorState(scenario: Scenario): SimulatorState {
     sweepMin: 0,
     sweepMax: 20,
     sweepStep: 5,
-    sensitivityParameter: 'supply.dailyUsdBudget',
+    sensitivityParameter: 'supply.versionUsdBudget',
     sensitivityMetric: 'firstPlaceProbability',
   }
   return {

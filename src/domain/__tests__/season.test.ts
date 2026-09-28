@@ -2,8 +2,54 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SCENARIO } from '../defaults'
 import { createSeededRng } from '../rng'
 import { runSeason } from '../season'
+import { aggregateSpend } from '../economy'
+import { createPurchaseScenario } from '../../test/fixtures'
 
 describe('six-day season engine', () => {
+  it.each([
+    [0, 1], [1439, 1], [1440, 2], [8639, 6], [8640, 6],
+  ])('unlocks exactly the cumulative dollar allowance at minute %s', (minute, allowance) => {
+    for (const [cost, allowed] of [[allowance, true], [allowance + 0.01, false]] as const) {
+      const scenario = createPurchaseScenario()
+      scenario.fans.attackCooldownMinutes = minute
+      scenario.supply.offers[0].usdCost = cost
+      const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+      expect(result.spendEvents.some((event) => event.minute === minute)).toBe(allowed)
+    }
+  })
+
+  it('carries unused allowance forward without resetting version spending each day', () => {
+    const scenario = createPurchaseScenario()
+    scenario.supply.offers[0].usdCost = 2
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.map((event) => event.minute)).toEqual([1440, 4320, 7200])
+    expect(aggregateSpend(result.spendEvents).usd).toBe(6)
+    expect(result.snapshots.at(-1)?.cumulativeUsd).toBe(6)
+  })
+
+  it('uses the configured season length while preserving the total version budget', () => {
+    const scenario = createPurchaseScenario()
+    scenario.season.days = 3
+    scenario.season.centerUnlockDay = 3
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.map((event) => event.minute)).toEqual([0, 0, 1440, 1440, 2880, 2880])
+  })
+
+  it('resets product daily limits while retaining cumulative spending', () => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 60 })
+    scenario.supply.offers[0].dailyPurchaseLimit = 1
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.map((event) => event.minute)).toEqual([0, 1440, 2880, 4320, 5760, 7200])
+  })
+
+  it('honors different budgets for the same tier in separate guilds', () => {
+    const scenario = createPurchaseScenario()
+    scenario.guilds.push({ ...structuredClone(scenario.guilds[0]), id: 'B', name: 'B' })
+    scenario.guilds[1].purchasePolicies.normal.versionUsdBudget = 0
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(aggregateSpend(result.spendEvents.filter((event) => event.guildId === 'A')).usd).toBe(6)
+    expect(result.spendEvents.filter((event) => event.guildId === 'B')).toEqual([])
+  })
   it('lets the default 999 formation slots behave as effectively unbounded', () => {
     const scenario = structuredClone(DEFAULT_SCENARIO)
     scenario.season.nodeCounts = { normal: 3, core: 0, center: 0 }
@@ -24,6 +70,9 @@ describe('six-day season engine', () => {
 
   it('recomputes recovery readiness when defeated fans return to the pool', () => {
     const scenario = structuredClone(DEFAULT_SCENARIO)
+    for (const guild of scenario.guilds) {
+      for (const policy of Object.values(guild.purchasePolicies)) policy.supplyPriority = []
+    }
     scenario.season.days = 1
     scenario.season.centerUnlockDay = 1
     scenario.season.nodeCounts = { normal: 2, core: 0, center: 0 }

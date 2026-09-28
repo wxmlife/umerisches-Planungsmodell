@@ -29,7 +29,6 @@ export function ParameterSidebar({
   analysis,
   onSetNumber,
   onSetNullableNumber,
-  onSetBoolean,
   onSetString,
   onSetAnalysisNumber,
   onSetAnalysisChoice,
@@ -207,43 +206,6 @@ export function ParameterSidebar({
               </>
             ) : control(`supply.offers.${offerIndex}.fixedFans`, `${offer.label} 固定恢复粉丝`, offer.fixedFans, 0, 100_000, 1)}
             {control(`supply.offers.${offerIndex}.dailyPurchaseLimit`, `${offer.label} 每日限购（0=不限）`, offer.dailyPurchaseLimit ?? 0, 0, 100, 1)}
-          </fieldset>
-        ))}
-        {(Object.keys(TIER_LABELS) as Tier[]).map((tier) => (
-          <fieldset key={tier} className="parameter-subgroup">
-            <legend>{TIER_LABELS[tier]}购买策略</legend>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={scenario.supply.purchasePolicies[tier].useAds}
-                onChange={(event) => onSetBoolean?.(
-                  `supply.purchasePolicies.${tier}.useAds`,
-                  event.target.checked,
-                )}
-              />
-              {TIER_LABELS[tier]}使用奖励广告
-            </label>
-            {control(`supply.purchasePolicies.${tier}.dailyUsdBudget`, `${TIER_LABELS[tier]}每日美元预算`, scenario.supply.purchasePolicies[tier].dailyUsdBudget, 0, 1000, 1)}
-            {control(`supply.purchasePolicies.${tier}.dailyDiamondBudget`, `${TIER_LABELS[tier]}每日钻石预算`, scenario.supply.purchasePolicies[tier].dailyDiamondBudget, 0, 100_000, 10)}
-            {scenario.supply.purchasePolicies[tier].supplyPriority.map((offerId, index) => (
-              <label className="select-control" key={`${tier}-priority-${index}`}>
-                {TIER_LABELS[tier]}购买优先级 {index + 1}
-                <select
-                  value={offerId}
-                  onChange={(event) => onSetString?.(
-                    `supply.purchasePolicies.${tier}.supplyPriority.${index}`,
-                    event.target.value,
-                  )}
-                >
-                  {scenario.supply.offers.map((offer) => (
-                    <option value={offer.id} key={offer.id}>{offer.label}</option>
-                  ))}
-                </select>
-              </label>
-            ))}
-            {errorFor(`supply.purchasePolicies.${tier}.supplyPriority`)
-              ? <p className="field-error">{errorFor(`supply.purchasePolicies.${tier}.supplyPriority`)}</p>
-              : null}
           </fieldset>
         ))}
       </CollapsibleSection>

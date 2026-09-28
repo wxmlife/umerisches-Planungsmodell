@@ -1,5 +1,30 @@
 import type { MonteCarloResult, QuantilePoint, Quantiles } from '../domain/aggregate'
 import type { SpendEvent } from '../domain/economy'
+import { DEFAULT_SCENARIO } from '../domain/defaults'
+import type { Scenario, TierPurchasePolicy } from '../domain/types'
+
+// One player can repeatedly deploy onto neutral nodes, isolating purchases from battles.
+export function createPurchaseScenario(policy: Partial<TierPurchasePolicy> = {}): Scenario {
+  const scenario = structuredClone(DEFAULT_SCENARIO)
+  scenario.fans = { ...scenario.fans, capacity: 1000, minDeploy: 1000, maxDeploy: 1000, naturalCapacityPerDay: 0, attackCooldownMinutes: 0 }
+  scenario.season.nodeCounts = { normal: 100, core: 0, center: 0 }
+  scenario.supply.offers = [{
+    id: 'test-supply', label: 'Test supply', mode: 'instant', usdCost: 1,
+    diamondCost: 0, adCost: 0, immediateCapacityRate: 0,
+    pulseCapacityRates: [], continuousCapacityRate: 0, durationMinutes: 0,
+    fixedFans: 1000, dailyPurchaseLimit: null,
+  }]
+  scenario.guilds = [scenario.guilds[0]]
+  for (const guild of scenario.guilds) {
+    guild.roster = { normal: 1, small: 0, whale: 0 }
+    guild.deployFans = { normal: 1000, core: 1000, center: 1000 }
+    guild.purchasePolicies = Object.fromEntries(['normal', 'small', 'whale'].map((tier) => [tier, {
+      versionUsdBudget: 6, versionDiamondBudget: 0, versionAdBudget: 0,
+      useAds: false, supplyPriority: ['test-supply'], ...structuredClone(policy),
+    }])) as Scenario['guilds'][number]['purchasePolicies']
+  }
+  return scenario
+}
 
 const zero: Quantiles = { p10: 0, median: 0, p90: 0, mean: 0 }
 const zeroPoint: QuantilePoint = { minute: 0, ...zero }

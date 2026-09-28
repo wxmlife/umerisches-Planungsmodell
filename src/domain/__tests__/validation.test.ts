@@ -1,8 +1,48 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SCENARIO } from '../defaults'
 import { validateScenario } from '../validation'
+import { createPurchaseScenario } from '../../test/fixtures'
 
 describe('scenario defaults and validation', () => {
+  it('gives every guild independent copies of the approved six-day tier templates', () => {
+    const normal = ['ad-or-diamond-ad', 'ad-or-diamond-diamond', 'flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600']
+    const paid = ['flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600', 'ad-or-diamond-ad', 'ad-or-diamond-diamond']
+    for (const guild of DEFAULT_SCENARIO.guilds) {
+      expect(guild.purchasePolicies).toEqual({
+        normal: { versionUsdBudget: 0, versionDiamondBudget: 120, versionAdBudget: 12, useAds: true, supplyPriority: normal },
+        small: { versionUsdBudget: 24, versionDiamondBudget: 0, versionAdBudget: 0, useAds: false, supplyPriority: paid },
+        whale: { versionUsdBudget: 90, versionDiamondBudget: 0, versionAdBudget: 0, useAds: false, supplyPriority: paid },
+      })
+    }
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    scenario.guilds[0].purchasePolicies.normal.supplyPriority.pop()
+    scenario.guilds[0].purchasePolicies.small.versionUsdBudget = 1
+    expect(scenario.guilds[1].purchasePolicies.normal.supplyPriority).toEqual(normal)
+    expect(scenario.guilds[1].purchasePolicies.small.versionUsdBudget).toBe(24)
+    expect(scenario.guilds[0].purchasePolicies.whale.supplyPriority).toEqual(paid)
+  })
+
+  it.each([
+    ['versionUsdBudget', -0.01], ['versionUsdBudget', Infinity], ['versionUsdBudget', NaN],
+    ['versionDiamondBudget', -1], ['versionDiamondBudget', 0.5], ['versionDiamondBudget', Infinity],
+    ['versionAdBudget', -1], ['versionAdBudget', 0.5], ['versionAdBudget', Infinity],
+  ] as const)('rejects invalid %s = %s at the guild policy path', (field, value) => {
+    const scenario = createPurchaseScenario({ [field]: value })
+    expect(validateScenario(scenario).issues.map((issue) => issue.path))
+      .toContain(`guilds.0.purchasePolicies.normal.${field}`)
+  })
+
+  it('accepts fractional dollars and a legal priority subset, including no purchases', () => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 0.01, supplyPriority: [] })
+    expect(validateScenario(scenario)).toEqual({ valid: true, issues: [] })
+  })
+
+  it('rejects unknown and duplicate offer priorities per guild and tier', () => {
+    const scenario = createPurchaseScenario({ supplyPriority: ['test-supply', 'test-supply', 'missing'] })
+    const paths = validateScenario(scenario).issues.map((issue) => issue.path)
+    expect(paths).toContain('guilds.0.purchasePolicies.normal.supplyPriority')
+    expect(paths).toContain('guilds.0.purchasePolicies.normal.supplyPriority.2')
+  })
   it('ships the approved formation and recovery defaults', () => {
     expect(DEFAULT_SCENARIO.fans.formationSlots).toBe(999)
     expect(DEFAULT_SCENARIO.fans.capacity).toBe(2000)
@@ -30,11 +70,11 @@ describe('scenario defaults and validation', () => {
     const scenario = structuredClone(DEFAULT_SCENARIO)
     scenario.guilds[1].id = scenario.guilds[0].id
     scenario.supply.offers[1].id = scenario.supply.offers[0].id
-    scenario.supply.purchasePolicies.normal.supplyPriority[0] = 'missing-offer'
+    scenario.guilds[0].purchasePolicies.normal.supplyPriority[0] = 'missing-offer'
     const paths = validateScenario(scenario).issues.map((issue) => issue.path)
     expect(paths).toContain('guilds.1.id')
     expect(paths).toContain('supply.offers.1.id')
-    expect(paths).toContain('supply.purchasePolicies.normal.supplyPriority.0')
+    expect(paths).toContain('guilds.0.purchasePolicies.normal.supplyPriority.0')
   })
 
   it('rejects non-monotonic loss bands and all-zero guild priorities', () => {

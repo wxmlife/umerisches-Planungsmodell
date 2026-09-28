@@ -16,11 +16,22 @@ const SUPPLY_PRIORITY = [
   'instant-600',
 ]
 
-const createPurchasePolicy = (): TierPurchasePolicy => ({
-  dailyUsdBudget: 0,
-  dailyDiamondBudget: 0,
-  useAds: false,
-  supplyPriority: [...SUPPLY_PRIORITY],
+const PAID_SUPPLY_PRIORITY = [
+  'flyer',
+  'cheer-stick',
+  'instant-2000',
+  'instant-1000',
+  'instant-600',
+  'ad-or-diamond-ad',
+  'ad-or-diamond-diamond',
+]
+
+const createPurchasePolicy = (tier: Tier): TierPurchasePolicy => ({
+  versionUsdBudget: tier === 'normal' ? 0 : tier === 'small' ? 24 : 90,
+  versionDiamondBudget: tier === 'normal' ? 120 : 0,
+  versionAdBudget: tier === 'normal' ? 12 : 0,
+  useAds: tier === 'normal',
+  supplyPriority: [...(tier === 'normal' ? SUPPLY_PRIORITY : PAID_SUPPLY_PRIORITY)],
 })
 
 const offers: RecoveryOffer[] = [
@@ -136,6 +147,11 @@ const guildDefaults = (
   id,
   name,
   roster,
+  purchasePolicies: {
+    normal: createPurchasePolicy('normal'),
+    small: createPurchasePolicy('small'),
+    whale: createPurchasePolicy('whale'),
+  },
   deployFans: { normal: 1000, core: 1500, center: 2000 },
   priorities: { normal: 1, core: 2, center: 3 },
 })
@@ -181,11 +197,6 @@ export const DEFAULT_SCENARIO: Scenario = {
     offers,
     adDailyLimit: 3,
     diamondUsdRate: null,
-    purchasePolicies: {
-      normal: createPurchasePolicy(),
-      small: createPurchasePolicy(),
-      whale: createPurchasePolicy(),
-    },
   },
   season: {
     days: 6,

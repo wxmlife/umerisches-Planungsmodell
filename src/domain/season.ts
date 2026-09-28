@@ -19,6 +19,7 @@ import type {
   RecoveryOffer,
   Scenario,
   Tier,
+  TierPurchasePolicy,
 } from './types'
 
 export type SeasonMode = 'deterministic' | 'stochastic'
@@ -124,8 +125,9 @@ interface PlayerState {
   actionsToday: number
   defenseCreditsToday: number
   lostFans: number
-  dailyUsdSpent: number
-  dailyDiamondSpent: number
+  versionUsdSpent: number
+  versionDiamondSpent: number
+  versionAdsUsed: number
   dailyAdsUsed: number
   dailyPurchases: Record<string, number>
 }
@@ -158,7 +160,16 @@ const SNAPSHOT_PRIORITY = 30
 const EPSILON = 1e-9
 
 function seasonDay(minute: number, days: number): number {
-  return Math.min(days, Math.floor(minute / 1440) + 1)
+  return Math.max(1, Math.min(days, Math.floor(minute / 1440) + 1))
+}
+
+function unlockedBudgets(policy: TierPurchasePolicy, minute: number, days: number) {
+  const day = seasonDay(minute, days)
+  return {
+    usd: policy.versionUsdBudget * day / days,
+    diamonds: Math.floor(policy.versionDiamondBudget * day / days),
+    ads: Math.floor(policy.versionAdBudget * day / days),
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -221,8 +232,9 @@ function buildPlayers(scenario: Scenario): PlayerState[] {
           actionsToday: 0,
           defenseCreditsToday: 0,
           lostFans: 0,
-          dailyUsdSpent: 0,
-          dailyDiamondSpent: 0,
+          versionUsdSpent: 0,
+          versionDiamondSpent: 0,
+          versionAdsUsed: 0,
           dailyAdsUsed: 0,
           dailyPurchases: {},
         })
@@ -457,24 +469,27 @@ export function runSeason(
   const offerEligible = (
     player: PlayerState,
     offer: RecoveryOffer,
+    minute: number,
   ): boolean => {
-    const policy = scenario.supply.purchasePolicies[player.tier]
+    const policy = guildById.get(player.guildId)!.purchasePolicies[player.tier]
+    const unlocked = unlockedBudgets(policy, minute, scenario.season.days)
     const count = player.dailyPurchases[offer.id] ?? 0
     if (offer.dailyPurchaseLimit !== null && count >= offer.dailyPurchaseLimit) return false
     if (offer.adCost > 0 && (!policy.useAds || player.dailyAdsUsed + offer.adCost > scenario.supply.adDailyLimit)) {
       return false
     }
-    if (player.dailyUsdSpent + offer.usdCost > policy.dailyUsdBudget + EPSILON) return false
-    if (player.dailyDiamondSpent + offer.diamondCost > policy.dailyDiamondBudget + EPSILON) return false
+    if (player.versionUsdSpent + offer.usdCost > unlocked.usd + EPSILON) return false
+    if (player.versionDiamondSpent + offer.diamondCost > unlocked.diamonds) return false
+    if (player.versionAdsUsed + offer.adCost > unlocked.ads) return false
     return true
   }
 
   const purchaseOffer = (player: PlayerState, minute: number): boolean => {
     if (player.economy.activeProgram || player.economy.queue.length > 0) return false
-    const policy = scenario.supply.purchasePolicies[player.tier]
+    const policy = guildById.get(player.guildId)!.purchasePolicies[player.tier]
     for (const offerId of policy.supplyPriority) {
       const offer = scenario.supply.offers.find((candidate) => candidate.id === offerId)
-      if (!offer || !offerEligible(player, offer)) continue
+      if (!offer || !offerEligible(player, offer, minute)) continue
       player.economy = activateOffer(
         player.economy,
         offer.id,
@@ -482,8 +497,9 @@ export function runSeason(
         scenario.supply,
         { guildId: player.guildId, playerId: player.id, tier: player.tier },
       )
-      player.dailyUsdSpent += offer.usdCost
-      player.dailyDiamondSpent += offer.diamondCost
+      player.versionUsdSpent += offer.usdCost
+      player.versionDiamondSpent += offer.diamondCost
+      player.versionAdsUsed += offer.adCost
       player.dailyAdsUsed += offer.adCost
       player.dailyPurchases[offer.id] = (player.dailyPurchases[offer.id] ?? 0) + 1
       guilds[player.guildId].cumulativeUsd += offer.usdCost
@@ -734,8 +750,6 @@ export function runSeason(
       for (const player of players) {
         player.actionsToday = 0
         player.defenseCreditsToday = 0
-        player.dailyUsdSpent = 0
-        player.dailyDiamondSpent = 0
         player.dailyAdsUsed = 0
         player.dailyPurchases = {}
       }

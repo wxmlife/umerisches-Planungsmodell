@@ -207,35 +207,6 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     'supply.diamondUsdRate',
     '钻石单价不能为负数',
   )
-  for (const tier of TIERS) {
-    const policy = supply.purchasePolicies[tier]
-    pushIf(
-      issues,
-      !isNonnegative(policy.dailyUsdBudget),
-      `supply.purchasePolicies.${tier}.dailyUsdBudget`,
-      '每日现金预算不能为负数',
-    )
-    pushIf(
-      issues,
-      !isNonnegative(policy.dailyDiamondBudget),
-      `supply.purchasePolicies.${tier}.dailyDiamondBudget`,
-      '每日钻石预算不能为负数',
-    )
-    policy.supplyPriority.forEach((offerId, index) => {
-      pushIf(
-        issues,
-        !offerIds.has(offerId),
-        `supply.purchasePolicies.${tier}.supplyPriority.${index}`,
-        '补给优先级引用了不存在的补给',
-      )
-    })
-    pushIf(
-      issues,
-      new Set(policy.supplyPriority).size !== policy.supplyPriority.length,
-      `supply.purchasePolicies.${tier}.supplyPriority`,
-      '补给优先级不能重复',
-    )
-  }
 
   pushIf(issues, !isPositiveInteger(season.days), 'season.days', '战斗日必须是正整数')
   pushIf(
@@ -260,6 +231,36 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     pushIf(issues, guildIds.has(guild.id), `${basePath}.id`, '公会 ID 不能重复')
     guildIds.add(guild.id)
     for (const tier of TIERS) {
+      const policy = guild.purchasePolicies[tier]
+      const policyPath = `${basePath}.purchasePolicies.${tier}`
+      pushIf(
+        issues,
+        !isNonnegative(policy.versionUsdBudget),
+        `${policyPath}.versionUsdBudget`,
+        '版本现金预算必须是有限非负数',
+      )
+      for (const field of ['versionDiamondBudget', 'versionAdBudget'] as const) {
+        pushIf(
+          issues,
+          !Number.isInteger(policy[field]) || policy[field] < 0,
+          `${policyPath}.${field}`,
+          '版本钻石和广告预算必须是非负整数',
+        )
+      }
+      policy.supplyPriority.forEach((offerId, priorityIndex) => {
+        pushIf(
+          issues,
+          !offerIds.has(offerId),
+          `${policyPath}.supplyPriority.${priorityIndex}`,
+          '补给优先级引用了不存在的补给',
+        )
+      })
+      pushIf(
+        issues,
+        new Set(policy.supplyPriority).size !== policy.supplyPriority.length,
+        `${policyPath}.supplyPriority`,
+        '补给优先级不能重复',
+      )
       pushIf(
         issues,
         !Number.isInteger(guild.roster[tier]) || guild.roster[tier] < 0,

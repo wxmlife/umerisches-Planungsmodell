@@ -31,7 +31,7 @@ const season: SeasonResult = {
 }
 
 const sensitivity: SensitivityResult = {
-  request: { parameter: 'supply.dailyUsdBudget', metric: 'firstPlaceProbability', min: 0, max: 10, step: 5, targetGuildId: 'A', runs: 10, seed: 1 },
+  request: { parameter: 'supply.versionUsdBudget', metric: 'firstPlaceProbability', min: 0, max: 10, step: 5, targetGuildId: 'A', runs: 10, seed: 1 },
   cancelled: false,
   points: [
     { x: 0, metricValue: 0.4, incrementalScorePerUsd: 0, finalScore: 100, firstPlaceProbability: 0.4, nodeCounts: { normal: 10, core: 1, center: 0 }, usd: 0, diamonds: 0, ads: 0, acceptedFans: 0, wastedFans: 0, actionCapacityBound: false },
@@ -44,8 +44,8 @@ describe('SupplyEfficiencyPanel', () => {
   it('shows recovery utilization and observed spend thresholds', () => {
     render(<SupplyEfficiencyPanel guildId="A" season={season} sensitivity={sensitivity} />)
     expect(screen.getByText('75.0%')).toBeVisible()
-    expect(screen.getByText('$5.00 / 日')).toBeVisible()
-    expect(screen.getByText('$10.00 / 日')).toBeVisible()
+    expect(screen.getByText('$5.00 / 版本')).toBeVisible()
+    expect(screen.getByText('$10.00 / 版本')).toBeVisible()
   })
 
   it('shows the action-capacity reason only when the scheduler proves it', () => {
@@ -96,7 +96,7 @@ describe('SupplyEfficiencyPanel', () => {
       />,
     )
 
-    expect(screen.getAllByText('需运行日预算扫描')).toHaveLength(3)
-    expect(screen.queryByText('$5.00 / 日')).not.toBeInTheDocument()
+    expect(screen.getAllByText('需运行版本预算扫描')).toHaveLength(3)
+    expect(screen.queryByText('$5.00 / 版本')).not.toBeInTheDocument()
   })
 })

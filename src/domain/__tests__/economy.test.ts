@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SCENARIO } from '../defaults'
+import { createPurchaseScenario } from '../../test/fixtures'
+import { runSeason } from '../season'
+import { createSeededRng } from '../rng'
 import {
   activateOffer,
   advanceEconomy,
@@ -11,6 +14,52 @@ import {
 const actor = { guildId: 'A', playerId: 'A-1', tier: 'normal' as const }
 
 describe('fan recovery economy', () => {
+  it.each(['usdCost', 'diamondCost', 'adCost'] as const)('rejects the entire mixed purchase when %s exceeds unlocked funds', (field) => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 6, versionDiamondBudget: 6, versionAdBudget: 6, useAds: true })
+    const offer = scenario.supply.offers[0]
+    Object.assign(offer, { usdCost: 1, diamondCost: 1, adCost: 1 })
+    offer[field] = field === 'usdCost' ? 1.01 : 2
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.filter((event) => event.minute < 1440)).toEqual([])
+    expect(result.spendEvents[0]).toMatchObject({ minute: 1440, usd: offer.usdCost, diamonds: offer.diamondCost, ads: offer.adCost })
+    expect(result.snapshots.find((snapshot) => snapshot.minute === 1380))
+      .toMatchObject({ cumulativeUsd: 0, cumulativeDiamonds: 0, cumulativeAds: 0 })
+  })
+
+  it.each(['all-enabled', 'switch-off', 'zero-budget', 'daily-limit', 'omitted-priority'])('requires all four advertising gates: %s', (gate) => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 0, versionAdBudget: 12, useAds: true })
+    Object.assign(scenario.supply.offers[0], { usdCost: 0, adCost: 1 })
+    const policy = scenario.guilds[0].purchasePolicies.normal
+    if (gate === 'switch-off') policy.useAds = false
+    if (gate === 'zero-budget') policy.versionAdBudget = 0
+    if (gate === 'daily-limit') scenario.supply.adDailyLimit = 0
+    if (gate === 'omitted-priority') policy.supplyPriority = []
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(aggregateSpend(result.spendEvents).ads).toBe(gate === 'all-enabled' ? 12 : 0)
+  })
+
+  it('enforces and resets the daily ad cap independently of the version cap', () => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 0, versionAdBudget: 60, useAds: true })
+    Object.assign(scenario.supply.offers[0], { usdCost: 0, adCost: 1 })
+    scenario.supply.adDailyLimit = 1
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.map((event) => event.minute)).toEqual([0, 1440, 2880, 4320, 5760, 7200])
+  })
+
+  it.each(['diamond', 'ad'] as const)('floors cumulative %s unlocks and allows integer rollover', (currency) => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 0, versionDiamondBudget: 11, versionAdBudget: 11, useAds: true })
+    scenario.supply.adDailyLimit = 100
+    Object.assign(scenario.supply.offers[0], { usdCost: 0, diamondCost: currency === 'diamond' ? 1 : 0, adCost: currency === 'ad' ? 1 : 0 })
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents.map((event) => event.minute)).toEqual([0, 1440, 1440, 2880, 2880, 4320, 4320, 5760, 5760, 7200, 7200])
+  })
+
+  it('allows only the existing epsilon tolerance for dollar comparisons', () => {
+    const scenario = createPurchaseScenario()
+    scenario.supply.offers[0].usdCost = 1 + 5e-10
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    expect(result.spendEvents[0]?.minute).toBe(0)
+  })
   it('restores exactly one capacity over 24 hours with fractional carry', () => {
     const state = createEconomyState(0, 2000)
     const next = advanceEconomy(

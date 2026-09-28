@@ -22,7 +22,7 @@ export function SupplyEfficiencyPanel({
   targetNodes?: Record<NodeKind, number>
 }) {
   const guild = season.guilds[guildId]
-  const isBudgetSweep = sensitivity?.request.parameter === 'supply.dailyUsdBudget'
+  const isBudgetSweep = sensitivity?.request.parameter === 'supply.versionUsdBudget'
   const budgetSensitivity = isBudgetSweep ? sensitivity : null
   const option = useMemo(
     () => buildSupplyEfficiencyOption(guild, budgetSensitivity),
@@ -30,11 +30,11 @@ export function SupplyEfficiencyPanel({
   )
   const thresholds = budgetSensitivity
     ? deriveSpendThresholds(budgetSensitivity.points)
-    : { dailyBudget50: null, dailyBudget80: null }
+    : { versionBudget50: null, versionBudget80: null }
   const nodeThreshold = budgetSensitivity && targetNodes
     ? deriveNodeTargetThreshold(budgetSensitivity.points, targetNodes)
     : null
-  const unavailable = isBudgetSweep ? '未达到' : '需运行日预算扫描'
+  const unavailable = isBudgetSweep ? '未达到' : '需运行版本预算扫描'
   const highestBudgetPoint = budgetSensitivity?.points.toSorted((a, b) => a.x - b.x).at(-1)
   const actionCapacityBound = highestBudgetPoint?.actionCapacityBound ?? false
 
@@ -42,9 +42,9 @@ export function SupplyEfficiencyPanel({
     <section className="dashboard-card dashboard-card--wide" aria-labelledby="supply-efficiency-title">
       <header className="card-header"><div><p className="eyebrow">SUPPLY EFFICIENCY</p><h2 id="supply-efficiency-title">补给与效率曲线</h2></div><span style={{ color: resolveGuildColors(guildId).main }}>{guildId}</span></header>
       <div className="metric-grid">
-        <article className="metric-card"><span>第一名概率 50%</span><strong>{thresholds.dailyBudget50 === null ? unavailable : `$${thresholds.dailyBudget50.toFixed(2)} / 日`}</strong></article>
-        <article className="metric-card"><span>第一名概率 80%</span><strong>{thresholds.dailyBudget80 === null ? unavailable : `$${thresholds.dailyBudget80.toFixed(2)} / 日`}</strong></article>
-        {targetNodes ? <article className="metric-card"><span>节点目标最低预算</span><strong>{nodeThreshold === null ? unavailable : `$${nodeThreshold.toFixed(2)} / 日`}</strong></article> : null}
+        <article className="metric-card"><span>第一名概率 50%</span><strong>{thresholds.versionBudget50 === null ? unavailable : `$${thresholds.versionBudget50.toFixed(2)} / 版本`}</strong></article>
+        <article className="metric-card"><span>第一名概率 80%</span><strong>{thresholds.versionBudget80 === null ? unavailable : `$${thresholds.versionBudget80.toFixed(2)} / 版本`}</strong></article>
+        {targetNodes ? <article className="metric-card"><span>节点目标最低预算</span><strong>{nodeThreshold === null ? unavailable : `$${nodeThreshold.toFixed(2)} / 版本`}</strong></article> : null}
       </div>
       {isBudgetSweep && targetNodes && nodeThreshold === null && actionCapacityBound
         ? <p className="capacity-warning">资源足够，行动容量不足</p>

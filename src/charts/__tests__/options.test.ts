@@ -95,7 +95,7 @@ describe('chart option builders', () => {
   it('uses domain-provided incremental score efficiency directly', () => {
     const option = buildSupplyEfficiencyOption(undefined, {
       request: {
-        parameter: 'supply.dailyUsdBudget',
+        parameter: 'supply.versionUsdBudget',
         metric: 'firstPlaceProbability',
         min: 5,
         max: 5,

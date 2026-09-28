@@ -60,7 +60,7 @@ describe('ParameterSidebar', () => {
     }
   })
 
-  it('lets the designer enable reward ads for each player tier', async () => {
+  it('keeps the global daily ad limit editable without obsolete global player policies', async () => {
     const user = userEvent.setup()
     render(<ParameterSidebarHarness />)
 
@@ -69,15 +69,15 @@ describe('ParameterSidebar', () => {
     await user.click(screen.getByText('商城'))
     expect(shopSection).toHaveAttribute('open')
 
-    const toggles = screen.getAllByRole('checkbox', { name: /使用奖励广告/ })
-    expect(toggles).toHaveLength(3)
-    expect(toggles[0]).not.toBeChecked()
-    await user.click(toggles[0])
-    expect(toggles[0]).toBeChecked()
+    const limit = screen.getByLabelText('每日奖励广告上限')
+    await user.clear(limit)
+    await user.type(limit, '5')
+    expect(limit).toHaveValue(5)
+    expect(screen.queryAllByRole('checkbox', { name: /使用奖励广告/ })).toHaveLength(0)
     expect(shopSection).toHaveAttribute('open')
   })
 
-  it('exposes recovery mechanics and purchase priority, not just price', async () => {
+  it('exposes recovery mechanics and global daily purchase limits', async () => {
     const user = userEvent.setup()
     render(<ParameterSidebarHarness />)
     await user.click(screen.getByText('商城'))
@@ -86,7 +86,7 @@ describe('ParameterSidebar', () => {
     expect(screen.getByLabelText('宣传单 脉冲 1 时间（分钟）')).toBeVisible()
     expect(screen.getByLabelText('奖励广告恢复 持续时间（分钟）')).toBeVisible()
     expect(screen.getByLabelText('即时补给 600 固定恢复粉丝')).toBeVisible()
-    expect(screen.getAllByLabelText(/购买优先级 1/)).toHaveLength(3)
+    expect(screen.getByLabelText('宣传单 每日限购（0=不限）')).toBeVisible()
   })
 
   it('shows parent validation errors beside the affected numeric fields', async () => {

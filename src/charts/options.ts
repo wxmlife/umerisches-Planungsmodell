@@ -323,7 +323,7 @@ export function buildSupplyEfficiencyOption(
   return {
     ...baseOption(),
     xAxis: points.length > 0
-      ? { type: 'value', name: '日预算' }
+      ? { type: 'value', name: '版本预算（美元）' }
       : { type: 'category', name: '恢复来源' },
     series,
   }

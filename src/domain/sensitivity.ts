@@ -16,7 +16,7 @@ export type SensitivityParameter =
   | 'battle.closeLossRate'
   | 'score.coreMultiplier'
   | 'score.centerMultiplier'
-  | 'supply.dailyUsdBudget'
+  | 'supply.versionUsdBudget'
 
 export type SensitivityMetric =
   | 'battleThreeWinProbability'
@@ -86,6 +86,7 @@ function applyParameter(
   parameter: SensitivityParameter,
   value: number,
   tier: Tier,
+  guildId: string,
 ) {
   if (parameter === 'battle.alpha') scenario.battle.alpha = value
   else if (parameter === 'battle.beta') scenario.battle.beta = value
@@ -98,7 +99,9 @@ function applyParameter(
   } else if (parameter === 'score.centerMultiplier') {
     scenario.score.nodeMultipliers.center = value
   } else {
-    scenario.supply.purchasePolicies[tier].dailyUsdBudget = value
+    const guild = scenario.guilds.find((candidate) => candidate.id === guildId)
+    if (!guild) throw new Error(`Unknown target guild: ${guildId}`)
+    guild.purchasePolicies[tier].versionUsdBudget = value
   }
 }
 
@@ -128,7 +131,7 @@ export function validateSensitivityRequest(
   const tier = request.targetTier ?? 'whale'
   for (const value of values) {
     const variant = structuredClone(scenario)
-    applyParameter(variant, request.parameter, value, tier)
+    applyParameter(variant, request.parameter, value, tier, request.targetGuildId)
     const validation = validateScenario(variant)
     if (!validation.valid) {
       issues.push({
@@ -236,9 +239,9 @@ export async function runSensitivity(
   let cancelled = false
   let zeroBudgetControl: SensitivityPoint | null = null
 
-  if (request.parameter === 'supply.dailyUsdBudget' && !values.includes(0)) {
+  if (request.parameter === 'supply.versionUsdBudget' && !values.includes(0)) {
     const baseline = structuredClone(scenario)
-    applyParameter(baseline, request.parameter, 0, tier)
+    applyParameter(baseline, request.parameter, 0, tier, request.targetGuildId)
     const result = await runTrials(
       { scenario: baseline, runs: request.runs, seed: request.seed },
       { isCancelled: hooks.isCancelled },
@@ -253,7 +256,7 @@ export async function runSensitivity(
       break
     }
     const variant = structuredClone(scenario)
-    applyParameter(variant, request.parameter, values[index], tier)
+    applyParameter(variant, request.parameter, values[index], tier, request.targetGuildId)
     const result = await runTrials(
       { scenario: variant, runs: request.runs, seed: request.seed + index },
       { isCancelled: hooks.isCancelled, onProgress: hooks.onProgress },
@@ -286,13 +289,13 @@ export async function runSensitivity(
 }
 
 export function deriveSpendThresholds(points: SensitivityPoint[]): {
-  dailyBudget50: number | null
-  dailyBudget80: number | null
+  versionBudget50: number | null
+  versionBudget80: number | null
 } {
   const sorted = [...points].sort((a, b) => a.x - b.x)
   return {
-    dailyBudget50: sorted.find((point) => point.firstPlaceProbability >= 0.5)?.x ?? null,
-    dailyBudget80: sorted.find((point) => point.firstPlaceProbability >= 0.8)?.x ?? null,
+    versionBudget50: sorted.find((point) => point.firstPlaceProbability >= 0.5)?.x ?? null,
+    versionBudget80: sorted.find((point) => point.firstPlaceProbability >= 0.8)?.x ?? null,
   }
 }
 

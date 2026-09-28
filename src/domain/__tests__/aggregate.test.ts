@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { SeasonResult } from '../season'
+import { runSeason, type SeasonResult } from '../season'
 import { aggregateTrials, quantiles } from '../aggregate'
+import { aggregateSpend } from '../economy'
+import { createSeededRng } from '../rng'
+import { createPurchaseScenario } from '../../test/fixtures'
 
 function resultWithScores(scores: Record<string, number>): SeasonResult {
   return {
@@ -53,7 +56,10 @@ function resultWithScores(scores: Record<string, number>): SeasonResult {
       },
     ]),
     events: [],
-    spendEvents: [],
+    spendEvents: Object.keys(scores).map((guildId) => ({
+      minute: 60, guildId, playerId: `${guildId}-normal-1`, tier: 'normal',
+      offerId: 'mixed-supply', usd: 1, diamonds: 20, ads: 1,
+    })),
     eventCount: 0,
     termination: 'season-end',
     terminationMinute: null,
@@ -66,6 +72,22 @@ function resultWithScores(scores: Record<string, number>): SeasonResult {
 }
 
 describe('trial aggregation', () => {
+  it('reconciles per-guild version spending with actual ledgers and final snapshots', () => {
+    const scenario = createPurchaseScenario({ versionUsdBudget: 6, versionDiamondBudget: 6, versionAdBudget: 6, useAds: true })
+    Object.assign(scenario.supply.offers[0], { diamondCost: 1, adCost: 1 })
+    scenario.guilds.push({ ...structuredClone(scenario.guilds[0]), id: 'B', name: 'B' })
+    scenario.guilds[1].purchasePolicies.normal.supplyPriority = []
+    const season = runSeason(scenario, createSeededRng(1), 'stochastic')
+    const aggregate = aggregateTrials([season])
+    for (const guildId of ['A', 'B']) {
+      const totals = aggregateSpend(season.spendEvents.filter((event) => event.guildId === guildId))
+      const final = season.snapshots.filter((snapshot) => snapshot.guildId === guildId).at(-1)!
+      expect(final).toMatchObject({ cumulativeUsd: totals.usd, cumulativeDiamonds: totals.diamonds, cumulativeAds: totals.ads })
+      expect(aggregate.guilds[guildId].spend).toMatchObject({ usd: { mean: totals.usd }, diamonds: { mean: totals.diamonds }, ads: { mean: totals.ads } })
+    }
+    expect(aggregate.guilds.A.spend).toMatchObject({ usd: { mean: 6 }, diamonds: { mean: 6 }, ads: { mean: 6 } })
+    expect(aggregate.guilds.B.spend).toMatchObject({ usd: { mean: 0 }, diamonds: { mean: 0 }, ads: { mean: 0 } })
+  })
   it('calculates interpolated quantiles without mutating the input', () => {
     const values = [40, 10, 30, 20]
     expect(quantiles(values)).toEqual({ p10: 13, median: 25, p90: 37, mean: 25 })

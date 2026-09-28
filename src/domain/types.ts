@@ -56,8 +56,9 @@ export interface RecoveryOffer {
 }
 
 export interface TierPurchasePolicy {
-  dailyUsdBudget: number
-  dailyDiamondBudget: number
+  versionUsdBudget: number
+  versionDiamondBudget: number
+  versionAdBudget: number
   useAds: boolean
   supplyPriority: string[]
 }
@@ -66,13 +67,13 @@ export interface SupplyConfig {
   offers: RecoveryOffer[]
   adDailyLimit: number
   diamondUsdRate: number | null
-  purchasePolicies: Record<Tier, TierPurchasePolicy>
 }
 
 export interface GuildConfig {
   id: string
   name: string
   roster: Record<Tier, number>
+  purchasePolicies: Record<Tier, TierPurchasePolicy>
   deployFans: Record<NodeKind, number>
   priorities: Record<NodeKind, number>
 }
