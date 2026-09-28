@@ -2,18 +2,24 @@ import { formulaError } from './types'
 import type { BoundNode, CompiledFormula, FormulaErrorCode, FormulaErrorContext, FormulaErrorPhase, FormulaValue } from './types'
 
 // Analytic P(A * U > D * V), for independent U,V uniform on [min,max].
-// Normalize by the larger power and roll before integrating the triangular
-// winning area. Both factors remain in [0,1], even for extreme finite inputs.
+// Preserve the original power gap and roll width before normalizing them;
+// subtracting separately rounded ratios loses adjacent-double differences.
 function uniformProbability(attacker: number, defender: number, min: number, max: number): number {
   if (defender === 0) return attacker > 0 ? 1 : 0
   if (attacker === 0) return 0
   if (attacker === defender) return 0.5
   const attackerStronger = attacker > defender
-  const ratio = attackerStronger ? defender / attacker : attacker / defender
-  const lower = min / max
-  if (ratio <= lower) return attackerStronger ? 1 : 0
-  const width = 1 - lower
-  const weakerWinProbability = 0.5 * ((ratio - lower) / width) * ((1 - lower / ratio) / width)
+  const weaker = attackerStronger ? defender : attacker
+  const stronger = attackerStronger ? attacker : defender
+  const ratio = weaker / stronger
+  const relativeGap = (stronger - weaker) / stronger
+  const width = max - min
+  // overlap = (weaker * max - stronger * min) / (stronger * width),
+  // rearranged to avoid overflowing products and cancellation near ratio=1.
+  const overlap = ratio - relativeGap * (min / width)
+  if (overlap <= 0) return attackerStronger ? 1 : 0
+  // Both factors are in [0,1]; this order also avoids squaring tiny values.
+  const weakerWinProbability = 0.5 * overlap * (overlap / ratio)
   return attackerStronger ? 1 - weakerWinProbability : weakerWinProbability
 }
 

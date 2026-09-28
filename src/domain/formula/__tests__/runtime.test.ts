@@ -137,6 +137,20 @@ describe('uniform win probability', () => {
   })
 
   it.each([
+    [1.5, 1.5000000000000002, 1.5, 1.5000000000000004, 0.12499999999999999],
+    [1.5000000000000002, 1.5, 1.5, 1.5000000000000004, 0.875],
+    [1, 1.0000000000000002, 1, 1.0000000000000004, 0.12499999999999997],
+    [1.5 * 2 ** 500, 1.5000000000000002 * 2 ** 500, 1.5 * 2 ** -500, 1.5000000000000004 * 2 ** -500, 0.12499999999999999],
+    [1.5 * 2 ** -500, 1.5000000000000002 * 2 ** -500, 1.5 * 2 ** 500, 1.5000000000000004 * 2 ** 500, 0.12499999999999999],
+  ])('preserves adjacent power differences and narrow roll widths (%s, %s)', (attackerPower, defenderPower, randomMin, randomMax, expected) => {
+    // Integrating the winning triangle gives 1/8 (or its complement), up to
+    // the stated last-bit correction. Independent power/roll scaling cancels.
+    expect(value('uniformWinProbability(attackerPower, defenderPower, randomMin, randomMax)', {
+      attackerPower, defenderPower, randomMin, randomMax,
+    }, 'winProbability')).toBeCloseTo(expected, 14)
+  })
+
+  it.each([
     ['uniformWinProbability(1e308, 1e-300, 0.9, 1.1)', 1],
     ['uniformWinProbability(1e-300, 1e308, 0.9, 1.1)', 0],
     ['uniformWinProbability(1e308, 1e308, 1e300, 1e308)', 0.5],
