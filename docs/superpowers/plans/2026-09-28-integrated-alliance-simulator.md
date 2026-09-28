@@ -205,9 +205,9 @@
 
 - [ ] **Step 1: Write failing reducer tests** for revision races, deterministic-run failure preserving applied, analysis failure not rolling back applied, and per-formula restore actions.
 - [ ] **Step 2: Write failing persistence tests** for valid v3, legacy policy/budget/analysis migration, invalid formula draft retention, corrupt/future/partial payload recovery, runtime-invalid applied fallback, and reset clearing both keys.
-- [ ] **Step 3: Write failing editor/integration tests** for 300 ms formula debounce, draft/applied split, side-panel bidirectional controls, unique DOM IDs/labels, stale styling scope, formula tabs/status/errors, and restore buttons.
+- [ ] **Step 3: Write failing editor/integration tests** for 300 ms formula debounce, draft/applied split, side-panel bidirectional controls, direct numeric inputs with no slider rails, retained step/unit/range guidance and validation, unique DOM IDs/labels, stale styling scope, formula tabs/status/errors, and restore buttons.
 - [ ] **Step 4: Run focused state/component tests and confirm the old two-state reducer and missing storage/editor cause the failures.**
-- [ ] **Step 5: Implement persistence decoding/migration/recovery, three-stage state transitions, formula editor wiring, unique control prefixes, and result-only stale/`aria-busy` styling.**
+- [ ] **Step 5: Implement persistence decoding/migration/recovery, three-stage state transitions, formula editor wiring, numeric-only parameter controls (remove range sliders while preserving input constraints/guidance), unique control prefixes, and result-only stale/`aria-busy` styling.**
 - [ ] **Step 6: Run focused tests and `npm test`; both must pass.**
 - [ ] **Step 7: Commit** with message `feat: persist editable formula scenarios safely`.
 
