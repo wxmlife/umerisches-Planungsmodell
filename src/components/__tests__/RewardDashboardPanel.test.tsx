@@ -22,6 +22,8 @@ describe('RewardDashboardPanel', () => {
     expect(screen.getByRole('table', { name: '奖励发行按资源和来源' })).toBeVisible()
     expect(screen.getAllByText('聊天称号').length).toBeGreaterThan(0)
     expect(screen.getByText('旧配置单次口径（每条来源独立，不相加成统一价值）')).toBeVisible()
+    expect(screen.getByRole('table', { name: '旧商店兑换审计' })).toBeVisible()
+    expect(screen.getByText('IAP 全员发行')).toBeVisible()
     expect(screen.getByText(/商店兑换是战功回收池/)).toBeVisible()
     expect(screen.getByRole('img', { name: '按资源和来源拆分的奖励发行量' })).toBeInTheDocument()
   })

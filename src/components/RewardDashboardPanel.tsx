@@ -65,19 +65,40 @@ function LegacyAuditTable({ audit }: { audit: LegacyRewardAuditResult }) {
     ...Object.keys(audit.paidPass.issuance).map(Number),
     ...Object.keys(audit.redPocket.perPlayerTheoretical).map(Number),
     ...Object.keys(audit.redPocket.allSeatCap).map(Number),
+    ...Object.keys(audit.iapAllMember.issuance).map(Number),
+    19,
+    64,
+    92,
+    140,
   ])].sort((a, b) => a - b)
   return (
     <div className="table-scroll">
       <table className="compact-table" aria-label="旧奖励来源审计">
         <caption>旧配置单次口径（每条来源独立，不相加成统一价值）</caption>
-        <thead><tr><th>资源</th><th>免费战令</th><th>付费战令</th><th>红包单人理论</th><th>红包全席上限</th></tr></thead>
+        <thead><tr><th>资源</th><th>免费战令</th><th>付费战令</th><th>红包单人理论</th><th>红包全席上限</th><th>IAP 全员发行</th></tr></thead>
         <tbody>{resourceIds.map((resourceId) => <tr key={resourceId}>
           <th scope="row">{rewardResourceLabel(resourceId)} <small>#{resourceId}</small></th>
           <td>{integer(audit.freePass.issuance[resourceId] ?? 0)}</td>
           <td>{integer(audit.paidPass.issuance[resourceId] ?? 0)}</td>
           <td>{integer(audit.redPocket.perPlayerTheoretical[resourceId] ?? 0)}</td>
           <td>{integer(audit.redPocket.allSeatCap[resourceId] ?? 0)}</td>
+          <td>{integer(audit.iapAllMember.issuance[resourceId] ?? 0)}</td>
         </tr>)}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function LegacyShopTable({ audit }: { audit: LegacyRewardAuditResult }) {
+  return (
+    <div className="table-scroll">
+      <table className="compact-table" aria-label="旧商店兑换审计">
+        <caption>旧商店兑换（资源回收，不计入免费发行）</caption>
+        <thead><tr><th>类型</th><th>成本</th><th>产出</th><th>上限口径</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">有限库存</th><td>{integer(audit.shop.finiteMeritCost)} 联盟战功</td><td>{audit.shop.finiteInventory.length === 0 ? '待补充生产列库存' : audit.shop.finiteInventory.map((item) => `${item.label} ×${integer(item.quantity)}`).join('、')}</td><td>配置库存总成本</td></tr>
+          {audit.shop.unlimitedExchanges.map((exchange) => <tr key={`${exchange.meritCost}-${exchange.output.resourceId}`}><th scope="row">无限兑换</th><td>{integer(exchange.meritCost)} 联盟战功</td><td>{exchange.output.label ?? rewardResourceLabel(exchange.output.resourceId)} ×{integer(exchange.output.quantity)}</td><td>无固定总上限</td></tr>)}
+        </tbody>
       </table>
     </div>
   )
@@ -234,6 +255,7 @@ export function RewardDashboardPanel({
         </div>
 
         <LegacyAuditTable audit={legacyAudit} />
+        <LegacyShopTable audit={legacyAudit} />
         <div className="reward-source-notes">
           <p><strong>旧来源：</strong>免费战令、付费战令、终身红包、IAP 全员礼包分别记账；IAP 有效成员数按输入计算。</p>
           <p><strong>商店：</strong>有限库存成本 {integer(legacyAudit.shop.finiteMeritCost)} 联盟战功，属于资源回收，不进入免费发放；无限兑换不设虚假的总上限。</p>
