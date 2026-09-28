@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Scenario, Tier, ValidationResult } from '../domain/types'
+import { rewardResourceLabel } from '../domain/rewardCatalog'
 import type { SimulatorAnalysis } from '../state/simulatorReducer'
 import { CollapsibleSection } from './CollapsibleSection'
 import { NumberSlider } from './NumberSlider'
@@ -80,6 +81,34 @@ export function ParameterSidebar({
       onChange={onSetNumber}
     />
   )
+  const nullableControl = (
+    path: string,
+    label: string,
+    value: number | null,
+    min: number,
+    max: number,
+    step: number,
+  ) => (
+    <NumberSlider
+      key={path}
+      idPrefix="sidebar"
+      path={path}
+      label={label}
+      value={value ?? 0}
+      min={min}
+      max={max}
+      step={step}
+      error={errorFor(path)}
+      onChange={(changedPath, changedValue) => {
+        if (onSetNullableNumber) onSetNullableNumber(changedPath, changedValue === 0 ? null : changedValue)
+        else onSetNumber(changedPath, changedValue)
+      }}
+    />
+  )
+  const rewardItemControls = (basePath: string, item: { resourceId: number; quantity: number }, label: string) => [
+    control(`${basePath}.resourceId`, `${label}资源 ID`, item.resourceId, 0, 1000, 1),
+    control(`${basePath}.quantity`, `${label}${rewardResourceLabel(item.resourceId)}数量`, item.quantity, 1, 10_000_000, 1),
+  ]
 
   return (
     <aside className="parameter-sidebar" aria-label="模拟参数">
@@ -155,6 +184,42 @@ export function ParameterSidebar({
         {control('score.nodeMultipliers.normal', '普通节点倍率', scenario.score.nodeMultipliers.normal, 0, 10, 0.1)}
         {control('score.nodeMultipliers.core', '核心节点倍率', scenario.score.nodeMultipliers.core, 0, 10, 0.1)}
         {control('score.nodeMultipliers.center', '中心节点倍率', scenario.score.nodeMultipliers.center, 0, 10, 0.1)}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="奖励模型">
+        {control('rewards.targetPoints', '个人奖励目标积分', scenario.rewards.targetPoints, 1, 10_000_000, 100)}
+        {control('rewards.dailyPointCap', '每日奖励积分上限', scenario.rewards.dailyPointCap, 1, 10_000_000, 100)}
+        {control('rewards.rankMinActiveDays', '排名最低活跃天数', scenario.rewards.rankMinActiveDays, 1, scenario.season.days, 1)}
+        {control('rewards.rankMinProgressRate', '排名最低进度比例', scenario.rewards.rankMinProgressRate, 0, 1, 0.01)}
+        {control('rewards.legacyProgressThreshold', '旧战令累计进度审计值', scenario.rewards.legacyProgressThreshold, 1, 10_000_000, 100)}
+        <label className="select-control">旧免费奖励处理方式<select value={scenario.rewards.legacyFreeMode} onChange={(event) => onSetString?.('rewards.legacyFreeMode', event.target.value)}>
+          <option value="replace">替换旧免费奖励</option>
+          <option value="stack">与旧免费奖励叠加</option>
+        </select></label>
+        <fieldset className="parameter-subgroup">
+          <legend>个人进度奖励（12 档）</legend>
+          {scenario.rewards.personalStages.flatMap((stage, stageIndex) => [
+            control(`rewards.personalStages.${stageIndex}.points`, `个人档位 ${stageIndex + 1} 积分门槛`, stage.points, 1, 10_000_000, 100),
+            ...stage.rewards.flatMap((item, itemIndex) => rewardItemControls(`rewards.personalStages.${stageIndex}.rewards.${itemIndex}`, item, `档位 ${stageIndex + 1} `)),
+          ])}
+        </fieldset>
+        <fieldset className="parameter-subgroup">
+          <legend>公会里程碑（按人均进度）</legend>
+          {scenario.rewards.guildMilestones.flatMap((milestone, milestoneIndex) => [
+            control(`rewards.guildMilestones.${milestoneIndex}.completionRate`, `里程碑 ${milestoneIndex + 1} 公会完成率`, milestone.completionRate, 0, 1, 0.01),
+            control(`rewards.guildMilestones.${milestoneIndex}.minimumPersonalRate`, `里程碑 ${milestoneIndex + 1} 个人最低进度`, milestone.minimumPersonalRate, 0, 1, 0.01),
+            ...milestone.rewards.flatMap((item, itemIndex) => rewardItemControls(`rewards.guildMilestones.${milestoneIndex}.rewards.${itemIndex}`, item, `里程碑 ${milestoneIndex + 1} `)),
+          ])}
+        </fieldset>
+        <fieldset className="parameter-subgroup">
+          <legend>结算排名奖励</legend>
+          {scenario.rewards.rankRewards.flatMap((rank, rankIndex) => [
+            control(`rewards.rankRewards.${rankIndex}.rank`, `排名档位 ${rankIndex + 1} 名次`, rank.rank, 1, 100, 1),
+            control(`rewards.rankRewards.${rankIndex}.merit`, `排名档位 ${rankIndex + 1} 战功`, rank.merit, 0, 100_000, 1),
+            nullableControl(`rewards.rankRewards.${rankIndex}.titleId`, `排名档位 ${rankIndex + 1} 称号 ID（0=未绑定）`, rank.titleId, 0, 100_000, 1),
+            <label className="text-control" key={`rewards.rankRewards.${rankIndex}.titleLabel`}>排名档位 {rankIndex + 1} 称号标签<input type="text" value={rank.titleLabel} onChange={(event) => onSetString?.(`rewards.rankRewards.${rankIndex}.titleLabel`, event.target.value)} /></label>,
+          ])}
+        </fieldset>
       </CollapsibleSection>
 
       <CollapsibleSection title="公会">

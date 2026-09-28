@@ -233,6 +233,23 @@ input[aria-invalid='true'] {
   gap: var(--space-3);
 }
 
+.text-control {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.text-control input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  background: var(--navy-900);
+}
+
 .toggle-row input {
   width: 20px;
   height: 20px;
@@ -491,6 +508,75 @@ input[aria-invalid='true'] {
 .metric-card--accent {
   border-color: rgba(233, 189, 85, 0.52);
   background: rgba(120, 88, 24, 0.25);
+}
+
+.card-subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.reward-dashboard-panel .chart {
+  min-height: 290px;
+  margin: var(--space-4) 0;
+}
+
+.reward-metric-grid small,
+.reward-dashboard-panel small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.reward-warning-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--gold-500);
+  border-radius: var(--radius-sm);
+  background: rgba(120, 88, 24, 0.2);
+}
+
+.reward-warning-list p,
+.reward-source-notes p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.reward-dashboard__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.reward-dashboard__controls label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.reward-settlement-note {
+  color: var(--mint-400);
+  font-size: 0.76rem;
+}
+
+.reward-detail-tables {
+  margin-top: var(--space-4);
+}
+
+.reward-source-notes {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
 }
 
 .table-pair {

@@ -119,6 +119,22 @@ describe('ParameterSidebar', () => {
     expect(number).toHaveAccessibleDescription(/100.*20000.*100/)
   })
 
+  it('exposes editable reward targets, thresholds, and replacement mode as direct numeric controls', async () => {
+    const user = userEvent.setup()
+    render(<ParameterSidebarHarness />)
+    await user.click(screen.getByText('奖励模型'))
+    const target = screen.getByLabelText('个人奖励目标积分')
+    await user.clear(target)
+    await user.type(target, '120000')
+    expect(target).toHaveValue(120000)
+    expect(screen.getByLabelText('每日奖励积分上限')).toHaveValue(22000)
+    expect(screen.getByLabelText('旧战令累计进度审计值')).toHaveValue(664000)
+    expect(screen.getByLabelText('旧免费奖励处理方式')).toHaveValue('replace')
+    await user.selectOptions(screen.getByLabelText('旧免费奖励处理方式'), 'stack')
+    expect(screen.getByLabelText('旧免费奖励处理方式')).toHaveValue('stack')
+    expect(screen.queryAllByRole('slider')).toHaveLength(0)
+  })
+
   it('shows all seven approved parameter groups', () => {
     render(<ParameterSidebarHarness />)
     for (const heading of ['战斗', '损耗', '粉丝', '地图与积分', '公会', '商城', '模拟']) {

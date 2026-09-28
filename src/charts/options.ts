@@ -4,6 +4,7 @@ import type { MonteCarloResult } from '../domain/aggregate'
 import type { SeasonResult, SeasonSnapshot } from '../domain/season'
 import type { SensitivityResult } from '../domain/sensitivity'
 import type { GuildSeasonResult } from '../domain/season'
+import type { RewardModelResult } from '../domain/rewards'
 import { monteCarloScoreTooltip, seasonChartTooltip } from './tooltip'
 import { resolveGuildColors } from './colors'
 import type { SpendGroup, SpendMetric } from './cumulativeSpend'
@@ -43,6 +44,16 @@ export interface CumulativeSpendSeries {
   groups: Array<SpendGroup & { color: string }>
   totals: SpendPoint[]
   byGroup: Record<string, SpendPoint[]>
+}
+
+export type RewardIssuanceSource = 'personal' | 'guild' | 'rank' | 'titles' | 'legacyFree'
+
+const REWARD_SOURCE_LABELS: Record<RewardIssuanceSource, string> = {
+  personal: '个人进度',
+  guild: '公会里程碑',
+  rank: '结算排名',
+  titles: '聊天称号',
+  legacyFree: '旧免费奖励（叠加）',
 }
 
 const METRIC_COLORS = ['A', 'B', 'C', 'D'].map((id) => resolveGuildColors(id).main)
@@ -284,6 +295,57 @@ export function buildCumulativeSpendOption(
     },
     series,
   }
+}
+
+/**
+ * Compare issuance sources without inventing a cross-resource value. Every
+ * resource is a category and every source is a separate stacked bar segment.
+ */
+export function buildRewardIssuanceOption(
+  result: RewardModelResult | null,
+  labels: Record<number, string> = {},
+): DashboardChartOption {
+  const sourceKeys: RewardIssuanceSource[] = ['personal', 'guild', 'rank', 'titles', 'legacyFree']
+  const sourceResourceIds = result
+    ? [...new Set(sourceKeys.flatMap((source) => Object.keys(result.sources[source]).map(Number)))]
+    : []
+  const resourceIds = sourceResourceIds.length > 0
+    ? sourceResourceIds.sort((a, b) => a - b)
+    : Object.keys(labels).map(Number).sort((a, b) => a - b)
+  const series = sourceKeys.map((source) => ({
+    name: REWARD_SOURCE_LABELS[source],
+    type: 'bar' as const,
+    stack: 'issuance',
+    data: resourceIds.map((resourceId) => result?.sources[source][resourceId] ?? 0),
+  }))
+  return {
+    ...baseOption(),
+    legend: { top: 4, textStyle: { color: '#aebbd3' } },
+    grid: { left: 72, right: 24, top: 48, bottom: 68, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: resourceIds.map((resourceId) => labels[resourceId] ?? `资源 #${resourceId}`),
+      axisLabel: { color: '#8493ad', interval: 0, rotate: resourceIds.length > 5 ? 24 : 0 },
+    },
+    yAxis: { type: 'value', name: '发行数量', axisLabel: { color: '#8493ad' }, splitLine: { lineStyle: { color: '#243450' } } },
+    tooltip: {
+      trigger: 'axis',
+      confine: false,
+      formatter: (parameters: unknown) => {
+        const list = Array.isArray(parameters) ? parameters : [parameters]
+        const rows = list.filter((item): item is { seriesName: string; value: number; axisValue: string } => Boolean(
+          item && typeof item === 'object' && 'seriesName' in item && 'value' in item && 'axisValue' in item,
+        ))
+        const resource = rows[0]?.axisValue ?? '资源'
+        return [`<strong>${resource}</strong>`, ...rows.map((row) => `${row.seriesName}：${Number(row.value).toLocaleString('zh-CN')}`)].join('<br/>')
+      },
+    },
+    series,
+  }
+}
+
+export function rewardSourceLabel(source: RewardIssuanceSource): string {
+  return REWARD_SOURCE_LABELS[source]
 }
 
 export function buildSupplyEfficiencyOption(

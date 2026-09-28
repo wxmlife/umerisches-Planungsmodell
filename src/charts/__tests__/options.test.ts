@@ -5,6 +5,7 @@ import { buildCumulativeSpendSeries } from '../cumulativeSpend'
 import { resolveGuildColors, resolveSemanticColor } from '../colors'
 import { createSeededRng } from '../../domain/rng'
 import { runSeason } from '../../domain/season'
+import { calculateRewardModel } from '../../domain/rewards'
 import {
   buildBattleOption,
   buildCumulativeSpendOption,
@@ -12,6 +13,7 @@ import {
   buildScoreOption,
   buildSupplyEfficiencyOption,
   buildSensitivityOption,
+  buildRewardIssuanceOption,
 } from '../options'
 
 describe('chart option builders', () => {
@@ -204,5 +206,15 @@ describe('chart option builders', () => {
     expect(html).toContain('1,000 真实胜率：100.0%')
     expect(html).toContain('1,000 守方粉丝：486')
     expect(html).not.toContain('0.585278604321229')
+  })
+
+  it('keeps reward issuance resources and sources as separate stacked series', () => {
+    const result = calculateRewardModel(scenario, season)
+    const option = buildRewardIssuanceOption(result, { 2: '钻石', 5: '公司升级券', 90: '联盟战功', 91: '联盟贡献', 601: '聊天称号' })
+    expect(option.xAxis).toMatchObject({ type: 'category', data: ['钻石', '公司升级券', '联盟战功', '联盟贡献', '聊天称号'] })
+    expect(option.series.map((series) => series.name)).toEqual(['个人进度', '公会里程碑', '结算排名', '聊天称号', '旧免费奖励（叠加）'])
+    expect(option.series.every((series) => series.type === 'bar' && series.stack === 'issuance')).toBe(true)
+    const tooltip = (option.tooltip as { formatter: (parameters: unknown) => string }).formatter
+    expect(tooltip([{ seriesName: '个人进度', axisValue: '钻石', value: 120 }])).toContain('个人进度：120')
   })
 })

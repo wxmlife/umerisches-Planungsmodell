@@ -9,6 +9,7 @@ import { SeasonScorePanel } from './components/SeasonScorePanel'
 import { SensitivityPanel } from './components/SensitivityPanel'
 import { SupplyEfficiencyPanel } from './components/SupplyEfficiencyPanel'
 import { LocalRecoveryPanel } from './components/LocalRecoveryPanel'
+import { RewardDashboardPanel } from './components/RewardDashboardPanel'
 import { compileFormula } from './domain/formula/compiler'
 import type { SensitivityMetric, SensitivityParameter } from './domain/sensitivity'
 import type { Scenario } from './domain/types'
@@ -106,6 +107,7 @@ function App() {
         >
           <div {...resultProps} className="result-content dashboard-card--wide" data-testid="season-results"><SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} seasonDays={displayScenario.season.days} /></div>
           <BattleCalibrationPanel scenario={displayScenario} calibration={state.calibration} draftScenario={state.draftScenario} validation={state.validation} formulaErrors={state.formulaErrors} stale={state.stale} pending={busy} onSetNumber={simulator.setNumber} onSetString={simulator.setString} onRestore={simulator.restoreFormula} />
+          <RewardDashboardPanel scenario={displayScenario} season={state.deterministic} monteCarlo={state.monteCarlo} stale={state.stale} busy={busy} />
           <div {...resultProps}><DailyBreakdownPanel result={state.deterministic} /></div>
           <div {...resultProps}><NodeFanPanel result={state.deterministic} guildId={resultGuildId} /></div>
           <div {...resultProps} className="result-content dashboard-card--wide"><RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} /></div>
