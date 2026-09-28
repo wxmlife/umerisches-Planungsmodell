@@ -51,6 +51,23 @@ describe('App integration', () => {
     expect(within(cards[1] as HTMLElement).getByRole('heading', { name: '连续挑战曲线' })).toBeVisible()
   })
 
+  it('wires deterministic spend catalogs and per-guild purchasing policy edits', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    expect(screen.getByText('确定性基准消费')).toBeVisible()
+    const table = screen.getByRole('table', { name: '消费账本汇总' })
+    expect(within(table).getAllByRole('row')).toHaveLength(6)
+    await user.click(screen.getByText('公会消费策略'))
+    await user.selectOptions(screen.getByLabelText('消费策略公会'), 'B')
+    await user.click(screen.getByRole('tab', { name: '小 R' }))
+    await user.clear(screen.getByLabelText('单人版本美元预算'))
+    await user.type(screen.getByLabelText('单人版本美元预算'), '36')
+    await user.click(screen.getByRole('button', { name: '运行蒙特卡洛' }))
+    const request = FakeWorker.instances[0].messages.find(message => message.type === 'run')
+    expect(request?.scenario.guilds[1].purchasePolicies.small.versionUsdBudget).toBe(36)
+    expect(request?.scenario.guilds[0].purchasePolicies.small.versionUsdBudget).toBe(24)
+  })
+
   it.each([1, 6, 14])('uses the configured %i day count in the season score title and accessible chart label', async (days) => {
     const user = userEvent.setup()
     render(<App />)

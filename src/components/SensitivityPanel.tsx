@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { buildSensitivityOption } from '../charts/options'
+import { buildSensitivityOption, VERSION_BUDGET_LABEL } from '../charts/options'
 import type {
   SensitivityMetric,
   SensitivityParameter,
@@ -13,7 +13,7 @@ const PARAMETERS: Array<{ value: SensitivityParameter; label: string }> = [
   { value: 'battle.closeLossRate', label: '惜败损耗率' },
   { value: 'score.coreMultiplier', label: '核心节点倍率' },
   { value: 'score.centerMultiplier', label: '中心节点倍率' },
-  { value: 'supply.versionUsdBudget', label: '版本付费预算' },
+  { value: 'supply.versionUsdBudget', label: VERSION_BUDGET_LABEL },
 ]
 
 const METRICS: Array<{ value: SensitivityMetric; label: string }> = [

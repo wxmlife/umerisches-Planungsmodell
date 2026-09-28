@@ -6,6 +6,7 @@ import type { SensitivityResult } from '../domain/sensitivity'
 import type { GuildSeasonResult } from '../domain/season'
 import { monteCarloScoreTooltip, seasonChartTooltip } from './tooltip'
 import { resolveGuildColors } from './colors'
+import type { SpendGroup, SpendMetric } from './cumulativeSpend'
 
 export interface DashboardSeries {
   name: string
@@ -14,6 +15,7 @@ export interface DashboardSeries {
   stack?: string
   symbol?: string
   smooth?: boolean
+  step?: 'end'
   showSymbol?: boolean
   lineStyle?: Record<string, unknown>
   areaStyle?: Record<string, unknown>
@@ -36,6 +38,9 @@ export interface SpendPoint {
 }
 
 export interface CumulativeSpendSeries {
+  metric: SpendMetric
+  endMinute: number
+  groups: Array<SpendGroup & { color: string }>
   totals: SpendPoint[]
   byGroup: Record<string, SpendPoint[]>
 }
@@ -234,7 +239,8 @@ export function buildSensitivityOption(
 ): DashboardChartOption {
   return {
     ...baseOption(),
-    xAxis: { type: 'value', name: result?.request.parameter ?? '参数' },
+    xAxis: { type: 'value', name: result?.request.parameter === 'supply.versionUsdBudget' ? VERSION_BUDGET_LABEL : result?.request.parameter ?? '参数' },
+    tooltip: { trigger: 'axis', confine: false, formatter: result?.request.parameter === 'supply.versionUsdBudget' ? versionBudgetTooltip : parameterTooltip },
     series: [{
       name: result?.request.metric ?? '指标',
       type: 'line',
@@ -246,14 +252,18 @@ export function buildSensitivityOption(
 export function buildCumulativeSpendOption(
   data: CumulativeSpendSeries,
 ): DashboardChartOption {
-  const series: DashboardSeries[] = []
-  for (const [group, points] of Object.entries(data.byGroup)) {
-    series.push({ name: `${group} 现金`, type: 'line', data: points.map((point) => [point.minute, point.cashUsd]) })
-    series.push({ name: `${group} 钻石`, type: 'line', data: points.map((point) => [point.minute, point.diamonds]) })
-    series.push({ name: `${group} 广告`, type: 'line', data: points.map((point) => [point.minute, point.ads]) })
-  }
+  const field = { usd: 'cashUsd', diamond: 'diamonds', ad: 'ads' } as const
+  const label = { usd: '现金', diamond: '钻石', ad: '广告' }[data.metric]
+  const unit = { usd: '美元', diamond: '钻', ad: '次' }[data.metric]
+  const series: DashboardSeries[] = data.groups.map(group => ({
+    name: `${group.label} ${label}`, type: 'line', symbol: 'none', step: 'end',
+    lineStyle: { color: group.color }, itemStyle: { color: group.color },
+    data: data.byGroup[group.id].map(point => [point.minute, point[field[data.metric]]]),
+  }))
   return {
     ...baseOption(),
+    xAxis: { type: 'value', name: '赛季时间（分钟）', min: 0, max: data.endMinute },
+    yAxis: { type: 'value', name: `${label}（${unit}）`, min: 0 },
     tooltip: {
       trigger: 'axis',
       confine: false,
@@ -267,13 +277,7 @@ export function buildCumulativeSpendOption(
           `<strong>${minute.toLocaleString('zh-CN')} 分钟</strong>`,
           ...rows.map((row) => {
             const value = row.value[1]
-            if (row.seriesName.endsWith('现金')) {
-              return `${row.seriesName}：$${value.toFixed(2)}`
-            }
-            if (row.seriesName.endsWith('钻石')) {
-              return `${row.seriesName}：${Math.round(value).toLocaleString('zh-CN')} 钻`
-            }
-            return `${row.seriesName}：${Math.round(value).toLocaleString('zh-CN')} 次`
+            return `${escapeHtml(row.seriesName)}：${formatSpendValue(data.metric, value)}`
           }),
         ].join('<br/>')
       },
@@ -323,8 +327,31 @@ export function buildSupplyEfficiencyOption(
   return {
     ...baseOption(),
     xAxis: points.length > 0
-      ? { type: 'value', name: '版本预算（美元）' }
+      ? { type: 'value', name: VERSION_BUDGET_LABEL }
       : { type: 'category', name: '恢复来源' },
+    tooltip: points.length > 0 ? { trigger: 'axis', confine: false, formatter: versionBudgetTooltip } : baseOption().tooltip,
     series,
   }
+}
+
+export const VERSION_BUDGET_LABEL = '单人版本美元预算（$·人⁻¹·版本⁻¹）'
+
+export function formatSpendValue(metric: SpendMetric, value: number): string {
+  if (metric === 'usd') return `$${value.toFixed(2)}`
+  return `${Math.round(value).toLocaleString('zh-CN')} ${metric === 'diamond' ? '钻' : '次广告'}`
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
+}
+
+function parameterTooltip(parameters: unknown, versionBudget = false): string {
+  const list = Array.isArray(parameters) ? parameters : [parameters]
+  const rows = list.filter((item): item is { seriesName: string; value: [number, number] } => Boolean(item && typeof item === 'object' && 'seriesName' in item && 'value' in item))
+  const x = rows[0]?.value[0] ?? 0
+  return [`<strong>${versionBudget ? `单人版本美元预算：$${x.toFixed(2)} / 人 / 版本` : x}</strong>`, ...rows.map(row => `${escapeHtml(row.seriesName)}：${row.value[1].toLocaleString('zh-CN', { maximumFractionDigits: 3 })}`)].join('<br/>')
+}
+
+function versionBudgetTooltip(parameters: unknown): string {
+  return parameterTooltip(parameters, true)
 }

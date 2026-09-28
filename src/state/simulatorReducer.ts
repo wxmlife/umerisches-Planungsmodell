@@ -40,6 +40,7 @@ export interface SimulatorState {
   analysis: SimulatorAnalysis
   analysisValidation: ValidationResult
   deterministic: SeasonResult
+  deterministicScenario: Scenario
   monteCarlo: MonteCarloResult | null
   sensitivity: SensitivityResult | null
   runStatus: 'idle' | 'running' | 'cancelling' | 'error'
@@ -54,6 +55,7 @@ export type SimulatorAction =
   | { type: 'set-nullable-number'; path: string; value: number | null }
   | { type: 'set-boolean'; path: string; value: boolean }
   | { type: 'set-string'; path: string; value: string }
+  | { type: 'set-string-array'; path: string; value: string[] }
   | { type: 'set-analysis-number'; path: string; value: number }
   | { type: 'set-analysis-choice'; path: SimulatorAnalysisChoice; value: string }
   | { type: 'deterministic-result'; scenario: Scenario; result: SeasonResult }
@@ -85,9 +87,9 @@ function writePath<T>(source: T, path: string, value: unknown): T {
 function updateDraft(
   state: SimulatorState,
   path: string,
-  value: number | null | boolean | string,
+  value: number | null | boolean | string | string[],
 ): SimulatorState {
-  const draft = writePath(state.draft, path, value)
+  const draft = writePath(state.draft, path, Array.isArray(value) ? [...value] : value)
   const validation = validateScenario(draft)
   return {
     ...state,
@@ -128,8 +130,8 @@ export function createSimulatorState(scenario: Scenario): SimulatorState {
     targetTier: 'whale',
     targetNodes: { normal: 20, core: 2, center: 1 },
     sweepMin: 0,
-    sweepMax: 20,
-    sweepStep: 5,
+    sweepMax: 120,
+    sweepStep: 30,
     sensitivityParameter: 'supply.versionUsdBudget',
     sensitivityMetric: 'firstPlaceProbability',
   }
@@ -137,6 +139,7 @@ export function createSimulatorState(scenario: Scenario): SimulatorState {
     draft,
     validation,
     lastValidScenario: structuredClone(draft),
+    deterministicScenario: structuredClone(draft),
     analysis,
     analysisValidation: validateAnalysis(draft, analysis),
     deterministic: runSeason(
@@ -180,7 +183,7 @@ export function simulatorReducer(
   if (action.type === 'set-boolean') {
     return updateDraft(state, action.path, action.value)
   }
-  if (action.type === 'set-string') {
+  if (action.type === 'set-string' || action.type === 'set-string-array') {
     return updateDraft(state, action.path, action.value)
   }
   if (action.type === 'set-analysis-number') {
@@ -214,7 +217,7 @@ export function simulatorReducer(
   }
   if (action.type === 'deterministic-result') {
     if (!state.validation.valid || action.scenario !== state.lastValidScenario) return state
-    return { ...state, deterministic: action.result, stale: false, errorMessage: null }
+    return { ...state, deterministic: action.result, deterministicScenario: structuredClone(action.scenario), stale: false, errorMessage: null }
   }
   if (action.type === 'deterministic-error') {
     if (!state.validation.valid || action.scenario !== state.lastValidScenario) return state

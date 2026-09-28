@@ -66,6 +66,7 @@ function App() {
         onSetNullableNumber={simulator.setNullableNumber}
         onSetBoolean={simulator.setBoolean}
         onSetString={simulator.setString}
+        onSetStringArray={simulator.setStringArray}
         onSetAnalysisNumber={simulator.setAnalysisNumber}
         onSetAnalysisChoice={simulator.setAnalysisChoice}
       />
@@ -101,7 +102,7 @@ function App() {
           <NodeFanPanel result={state.deterministic} guildId={state.analysis.targetGuildId} />
           <RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} />
           <SupplyEfficiencyPanel guildId={state.analysis.targetGuildId} season={state.deterministic} sensitivity={state.sensitivity} targetNodes={state.analysis.targetNodes} />
-          <CumulativeSpendPanel events={state.deterministic.spendEvents} diamondUsdRate={displayScenario.supply.diamondUsdRate} />
+          <CumulativeSpendPanel events={state.deterministic.spendEvents} scenario={state.deterministicScenario} />
           <SensitivityPanel
             result={state.sensitivity}
             parameter={state.analysis.sensitivityParameter}

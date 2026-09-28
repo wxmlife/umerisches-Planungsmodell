@@ -174,6 +174,10 @@ export function useSimulator() {
       invalidateActiveRun()
       dispatch({ type: 'set-string', path, value })
     },
+    setStringArray: (path: string, value: string[]) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-string-array', path, value })
+    },
     setAnalysisNumber: (path: string, value: number) => {
       invalidateActiveRun()
       dispatch({ type: 'set-analysis-number', path, value })

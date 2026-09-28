@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SCENARIO } from '../../domain/defaults'
+import { runSeason } from '../../domain/season'
+import { createSeededRng } from '../../domain/rng'
 import { SAMPLE_MONTE_CARLO_RESULT } from '../../test/fixtures'
 import { createSimulatorState, simulatorReducer } from '../simulatorReducer'
 
 describe('simulatorReducer', () => {
+  it.each([1, 14])('keeps the six-day ledger snapshot during a pending %i-day edit and rejects late results', days => {
+    const initial = createSimulatorState(DEFAULT_SCENARIO)
+    const openCenter = simulatorReducer(initial, { type: 'set-number', path: 'season.centerUnlockDay', value: 1 })
+    const edited = simulatorReducer(openCenter, { type: 'set-number', path: 'season.days', value: days })
+    expect(edited.deterministicScenario.season.days).toBe(6)
+    expect(edited.deterministic).toBe(initial.deterministic)
+    const late = simulatorReducer(edited, { type: 'deterministic-result', scenario: openCenter.lastValidScenario, result: initial.deterministic })
+    expect(late.deterministicScenario.season.days).toBe(6)
+    const applied = simulatorReducer(edited, { type: 'deterministic-result', scenario: edited.lastValidScenario, result: runSeason(edited.lastValidScenario, createSeededRng(1), 'deterministic') })
+    expect(applied.deterministicScenario.season.days).toBe(days)
+    expect(applied.deterministicScenario).not.toBe(applied.lastValidScenario)
+  })
   it('invalidates stochastic output and ignores a late worker result after a valid edit', () => {
     const initial = {
       ...createSimulatorState(DEFAULT_SCENARIO),

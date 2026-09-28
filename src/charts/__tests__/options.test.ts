@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_MONTE_CARLO_RESULT } from '../../test/fixtures'
 import { DEFAULT_SCENARIO } from '../../domain/defaults'
+import { buildCumulativeSpendSeries } from '../cumulativeSpend'
+import { resolveGuildColors, resolveSemanticColor } from '../colors'
 import { createSeededRng } from '../../domain/rng'
 import { runSeason } from '../../domain/season'
 import {
@@ -9,6 +11,7 @@ import {
   buildDailyBreakdownOption,
   buildScoreOption,
   buildSupplyEfficiencyOption,
+  buildSensitivityOption,
 } from '../options'
 
 describe('chart option builders', () => {
@@ -127,25 +130,62 @@ describe('chart option builders', () => {
   })
 
   it('formats cumulative tooltip currencies without floating point noise', () => {
-    const option = buildCumulativeSpendOption({
-      totals: [],
-      byGroup: {
-        A: [{ minute: 4560, cashUsd: 30.689999999999998, diamonds: 160, ads: 12 }],
-      },
-    })
+    const option = buildCumulativeSpendOption(buildCumulativeSpendSeries({
+      events: [{ minute: 4560, guildId: 'A', playerId: 'p', tier: 'whale', offerId: 'flyer', usd: 30.689999999999998, diamonds: 160, ads: 12 }],
+      groupCatalog: [{ id: 'A', label: 'A' }], endMinute: 8640,
+      metric: 'usd', dimension: 'guild', colorResolver: id => resolveGuildColors(id).main,
+    }))
     const formatter = (option.tooltip as {
       formatter: (parameters: unknown) => string
     }).formatter
     const html = formatter([
       { seriesName: 'A 现金', value: [4560, 30.689999999999998] },
-      { seriesName: 'A 钻石', value: [4560, 160] },
-      { seriesName: 'A 广告', value: [4560, 12] },
     ])
 
     expect(html).toContain('A 现金：$30.69')
-    expect(html).toContain('A 钻石：160 钻')
-    expect(html).toContain('A 广告：12 次')
     expect(html).not.toContain('30.689999999999998')
+  })
+
+  it.each([
+    ['usd', '现金（美元）', '现金', 1.25, '$1.25'],
+    ['diamond', '钻石（钻）', '钻石', 20, '20 钻'],
+    ['ad', '广告（次）', '广告', 2, '2 次广告'],
+  ] as const)('shows only %s with matching units, catalog labels and explicit identity colors', (metric, axisName, label, value, formatted) => {
+    const option = buildCumulativeSpendOption(buildCumulativeSpendSeries({
+      events: [{ minute: 60, guildId: '联盟', playerId: 'p', tier: 'normal', offerId: 'flyer', usd: 1.25, diamonds: 20, ads: 2 }],
+      groupCatalog: [{ id: '联盟', label: '新公会' }, { id: 'A', label: '公会 A' }],
+      endMinute: 1500, metric, dimension: 'guild', colorResolver: id => resolveGuildColors(id).main,
+    }))
+    expect(option.series).toHaveLength(2)
+    expect(option.series[0]).toMatchObject({ name: '新公会 ' + label, lineStyle: { color: '#F3C665' }, itemStyle: { color: '#F3C665' } })
+    expect(option.series[0].data.at(-1)).toEqual([1500, value])
+    expect(option.series[1].data.at(-1)).toEqual([1500, 0])
+    expect(option.xAxis).toMatchObject({ min: 0, max: 1500 })
+    expect(option.yAxis).toMatchObject({ name: axisName })
+    const formatter = (option.tooltip as { formatter: (params: unknown) => string }).formatter
+    expect(formatter([{ seriesName: '新公会 ' + label, value: [1500, value] }])).toContain('新公会 ' + label + '：' + formatted)
+  })
+
+  it.each(['tier', 'offer'] as const)('uses stable semantic colors for %s groups', dimension => {
+    const ids = dimension === 'tier' ? ['normal', 'small', 'whale'] : ['flyer', 'instant-2000', 'custom']
+    const option = buildCumulativeSpendOption(buildCumulativeSpendSeries({
+      events: [], groupCatalog: ids.map(id => ({ id, label: id })),
+      endMinute: 8640, metric: 'usd', dimension, colorResolver: id => resolveSemanticColor(dimension, id),
+    }))
+    expect(option.series.map(series => series.itemStyle?.color)).toEqual(dimension === 'tier' ? ['#7DD7C4', '#F3C665', '#EF7AA8'] : ['#F3C665', '#F59E0B', '#22D3EE'])
+  })
+
+  it('shows the per-person version unit on sensitivity and efficiency budget axes and tooltips', () => {
+    const result = {
+      request: { parameter: 'supply.versionUsdBudget' as const, metric: 'firstPlaceProbability' as const, min: 0, max: 10, step: 5, targetGuildId: 'A', runs: 1, seed: 1 },
+      points: [{ x: 5, metricValue: 0.5, incrementalScorePerUsd: 1, finalScore: 1, firstPlaceProbability: 0.5, nodeCounts: { normal: 0, core: 0, center: 0 }, usd: 1, diamonds: 0, ads: 0, acceptedFans: 1, wastedFans: 0, actionCapacityBound: false }],
+      cancelled: false,
+    }
+    for (const option of [buildSensitivityOption(result), buildSupplyEfficiencyOption(undefined, result)]) {
+      expect(option.xAxis).toMatchObject({ name: '单人版本美元预算（$·人⁻¹·版本⁻¹）' })
+      const formatter = (option.tooltip as { formatter: (params: unknown) => string }).formatter
+      expect(formatter([{ seriesName: '第一名概率', value: [5, 0.5] }])).toContain('$5.00 / 人 / 版本')
+    }
   })
 
   it('formats battle tooltip probabilities as percentages and fans as people', () => {

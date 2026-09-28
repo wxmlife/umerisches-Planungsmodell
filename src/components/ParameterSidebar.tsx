@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Scenario, Tier, ValidationResult } from '../domain/types'
 import type { SimulatorAnalysis } from '../state/simulatorReducer'
 import { CollapsibleSection } from './CollapsibleSection'
@@ -12,6 +13,7 @@ export interface ParameterSidebarProps {
   onSetNullableNumber?: (path: string, value: number | null) => void
   onSetBoolean?: (path: string, value: boolean) => void
   onSetString?: (path: string, value: string) => void
+  onSetStringArray?: (path: string, value: string[]) => void
   onSetAnalysisNumber?: (path: string, value: number) => void
   onSetAnalysisChoice?: (path: 'targetGuildId' | 'targetTier', value: string) => void
 }
@@ -30,9 +32,25 @@ export function ParameterSidebar({
   onSetNumber,
   onSetNullableNumber,
   onSetString,
+  onSetBoolean,
+  onSetStringArray,
   onSetAnalysisNumber,
   onSetAnalysisChoice,
 }: ParameterSidebarProps) {
+  const [selectedGuildId, setSelectedGuildId] = useState(scenario.guilds[0]?.id ?? '')
+  const [selectedTier, setSelectedTier] = useState<Tier>('normal')
+  const guildIndex = Math.max(0, scenario.guilds.findIndex(guild => guild.id === selectedGuildId))
+  const guild = scenario.guilds[guildIndex]
+  const policy = guild?.purchasePolicies[selectedTier]
+  const policyPath = `guilds.${guildIndex}.purchasePolicies.${selectedTier}`
+  const changePriority = (value: string[]) => onSetStringArray?.(`${policyPath}.supplyPriority`, value)
+  const movePriority = (index: number, direction: number) => {
+    if (!policy) return
+    const next = [...policy.supplyPriority]
+    const target = index + direction
+    ;[next[index], next[target]] = [next[target], next[index]]
+    changePriority(next)
+  }
   const errorFor = (
     path: string,
     source: ValidationResult = validation,
@@ -170,6 +188,29 @@ export function ParameterSidebar({
             ])}
           </fieldset>
         ))}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="公会消费策略">
+        <label className="select-control">消费策略公会<select value={guild?.id ?? ''} onChange={event => setSelectedGuildId(event.target.value)}>{scenario.guilds.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <div role="tablist" aria-label="消费策略玩家档位">{(Object.keys(TIER_LABELS) as Tier[]).map(tier => <button type="button" role="tab" id={`purchase-tier-${tier}`} aria-controls="purchase-policy-panel" aria-selected={selectedTier === tier} key={tier} onClick={() => setSelectedTier(tier)}>{TIER_LABELS[tier]}</button>)}</div>
+        {policy ? <div role="tabpanel" id="purchase-policy-panel" aria-labelledby={`purchase-tier-${selectedTier}`} key={policyPath}>
+          <p>每名玩家的整个版本预算，按赛季天数逐日解锁并结转。</p>
+          {control(`${policyPath}.versionUsdBudget`, '单人版本美元预算', policy.versionUsdBudget, 0, 1000, 0.01)}
+          {control(`${policyPath}.versionDiamondBudget`, '单人版本钻石预算', policy.versionDiamondBudget, 0, 100_000, 1)}
+          {control(`${policyPath}.versionAdBudget`, '单人版本广告预算', policy.versionAdBudget, 0, 1000, 1)}
+          <label className="toggle-row"><input type="checkbox" checked={policy.useAds} onChange={event => onSetBoolean?.(`${policyPath}.useAds`, event.target.checked)} />启用广告</label>
+          <p>购买优先级：从上到下；未列出的商品不主动购买。</p>
+          <ol aria-label="购买优先级">{policy.supplyPriority.map((id, index) => {
+            const label = scenario.supply.offers.find(offer => offer.id === id)?.label ?? id
+            return <li key={id} data-offer-id={id}>{label}
+              <button type="button" aria-label={`${label} 上移`} disabled={index === 0} onClick={() => movePriority(index, -1)}>↑</button>
+              <button type="button" aria-label={`${label} 下移`} disabled={index === policy.supplyPriority.length - 1} onClick={() => movePriority(index, 1)}>↓</button>
+              <button type="button" aria-label={`${label} 移除`} onClick={() => changePriority(policy.supplyPriority.filter(item => item !== id))}>移除</button>
+            </li>
+          })}</ol>
+          <label className="select-control">添加购买商品<select value="" onChange={event => { if (event.target.value) changePriority([...policy.supplyPriority, event.target.value]) }}><option value="">选择商品</option>{scenario.supply.offers.filter(offer => !policy.supplyPriority.includes(offer.id)).map(offer => <option key={offer.id} value={offer.id}>{offer.label}</option>)}</select></label>
+          {errorFor(`${policyPath}.supplyPriority`) ? <p className="field-error">{errorFor(`${policyPath}.supplyPriority`)}</p> : null}
+        </div> : null}
       </CollapsibleSection>
 
       <CollapsibleSection title="商城">

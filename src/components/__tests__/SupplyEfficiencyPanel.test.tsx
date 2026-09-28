@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SeasonResult } from '../../domain/season'
 import type { SensitivityResult } from '../../domain/sensitivity'
 import { SupplyEfficiencyPanel } from '../SupplyEfficiencyPanel'
+import { SensitivityPanel } from '../SensitivityPanel'
 
 const season: SeasonResult = {
   guilds: {
@@ -41,11 +42,17 @@ const sensitivity: SensitivityResult = {
 }
 
 describe('SupplyEfficiencyPanel', () => {
+  it('labels sensitivity dollars per person and version', () => {
+    render(<SensitivityPanel result={sensitivity} />)
+    expect(screen.getByRole('option', { name: '单人版本美元预算（$·人⁻¹·版本⁻¹）' })).toBeInTheDocument()
+    expect(screen.queryByText(/日预算/)).not.toBeInTheDocument()
+  })
   it('shows recovery utilization and observed spend thresholds', () => {
     render(<SupplyEfficiencyPanel guildId="A" season={season} sensitivity={sensitivity} />)
     expect(screen.getByText('75.0%')).toBeVisible()
-    expect(screen.getByText('$5.00 / 版本')).toBeVisible()
-    expect(screen.getByText('$10.00 / 版本')).toBeVisible()
+    expect(screen.getByText('$5.00 / 人 / 版本')).toBeVisible()
+    expect(screen.getByText('$10.00 / 人 / 版本')).toBeVisible()
+    expect(screen.getByText('单人版本美元预算（$·人⁻¹·版本⁻¹）')).toBeVisible()
   })
 
   it('shows the action-capacity reason only when the scheduler proves it', () => {
@@ -97,6 +104,6 @@ describe('SupplyEfficiencyPanel', () => {
     )
 
     expect(screen.getAllByText('需运行版本预算扫描')).toHaveLength(3)
-    expect(screen.queryByText('$5.00 / 版本')).not.toBeInTheDocument()
+    expect(screen.queryByText('$5.00 / 人 / 版本')).not.toBeInTheDocument()
   })
 })

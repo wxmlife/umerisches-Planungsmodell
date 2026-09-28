@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { buildSupplyEfficiencyOption } from '../charts/options'
+import { buildSupplyEfficiencyOption, VERSION_BUDGET_LABEL } from '../charts/options'
 import { resolveGuildColors } from '../charts/colors'
 import type { NodeKind } from '../domain/types'
 import type { SeasonResult } from '../domain/season'
@@ -42,10 +42,11 @@ export function SupplyEfficiencyPanel({
     <section className="dashboard-card dashboard-card--wide" aria-labelledby="supply-efficiency-title">
       <header className="card-header"><div><p className="eyebrow">SUPPLY EFFICIENCY</p><h2 id="supply-efficiency-title">补给与效率曲线</h2></div><span style={{ color: resolveGuildColors(guildId).main }}>{guildId}</span></header>
       <div className="metric-grid">
-        <article className="metric-card"><span>第一名概率 50%</span><strong>{thresholds.versionBudget50 === null ? unavailable : `$${thresholds.versionBudget50.toFixed(2)} / 版本`}</strong></article>
-        <article className="metric-card"><span>第一名概率 80%</span><strong>{thresholds.versionBudget80 === null ? unavailable : `$${thresholds.versionBudget80.toFixed(2)} / 版本`}</strong></article>
-        {targetNodes ? <article className="metric-card"><span>节点目标最低预算</span><strong>{nodeThreshold === null ? unavailable : `$${nodeThreshold.toFixed(2)} / 版本`}</strong></article> : null}
+        <article className="metric-card"><span>第一名概率 50%</span><strong>{thresholds.versionBudget50 === null ? unavailable : `$${thresholds.versionBudget50.toFixed(2)} / 人 / 版本`}</strong></article>
+        <article className="metric-card"><span>第一名概率 80%</span><strong>{thresholds.versionBudget80 === null ? unavailable : `$${thresholds.versionBudget80.toFixed(2)} / 人 / 版本`}</strong></article>
+        {targetNodes ? <article className="metric-card"><span>节点目标最低预算</span><strong>{nodeThreshold === null ? unavailable : `$${nodeThreshold.toFixed(2)} / 人 / 版本`}</strong></article> : null}
       </div>
+      <p>{VERSION_BUDGET_LABEL}</p>
       {isBudgetSweep && targetNodes && nodeThreshold === null && actionCapacityBound
         ? <p className="capacity-warning">资源足够，行动容量不足</p>
         : null}

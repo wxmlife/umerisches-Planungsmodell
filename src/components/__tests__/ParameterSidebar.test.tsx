@@ -26,6 +26,7 @@ function SimulatorHarness() {
         onSetNumber={(path, value) => dispatch({ type: 'set-number', path, value })}
         onSetBoolean={(path, value) => dispatch({ type: 'set-boolean', path, value })}
         onSetString={(path, value) => dispatch({ type: 'set-string', path, value })}
+        onSetStringArray={(path, value) => dispatch({ type: 'set-string-array', path, value })}
         onSetAnalysisNumber={(path, value) => dispatch({ type: 'set-analysis-number', path, value })}
       />
       <RunToolbar
@@ -44,6 +45,66 @@ function SimulatorHarness() {
 const ParameterSidebarHarness = SimulatorHarness
 
 describe('ParameterSidebar', () => {
+  it('keeps priority action input independent of the resulting scenario snapshot', () => {
+    const state = createSimulatorState(DEFAULT_SCENARIO)
+    const priority = ['flyer']
+    const updated = simulatorReducer(state, { type: 'set-string-array', path: 'guilds.0.purchasePolicies.normal.supplyPriority', value: priority })
+    priority.push('cheer-stick')
+    expect(updated.draft.guilds[0].purchasePolicies.normal.supplyPriority).toEqual(['flyer'])
+    expect(state.draft.guilds[0].purchasePolicies.normal.supplyPriority).toHaveLength(7)
+  })
+
+  it('defaults the per-person version budget scan to include the whale budget', () => {
+    const state = createSimulatorState(DEFAULT_SCENARIO)
+    expect(state.analysis).toMatchObject({ sweepMin: 0, sweepMax: 120, sweepStep: 30 })
+  })
+  it('isolates version budgets and advertising between guilds and tiers', async () => {
+    const user = userEvent.setup()
+    render(<ParameterSidebarHarness />)
+    await user.click(screen.getByText('公会消费策略'))
+    const usd = () => screen.getByLabelText('单人版本美元预算')
+    expect(usd()).toHaveValue(0)
+    expect(usd()).toHaveAttribute('step', '0.01')
+    expect(screen.getByLabelText('单人版本钻石预算')).toHaveValue(120)
+    expect(screen.getByLabelText('单人版本钻石预算')).toHaveAttribute('step', '1')
+    expect(screen.getByLabelText('单人版本广告预算')).toHaveValue(12)
+    expect(screen.getByLabelText('单人版本广告预算')).toHaveAttribute('step', '1')
+    expect(screen.getByRole('checkbox', { name: '启用广告' })).toBeChecked()
+    await user.clear(usd())
+    await user.type(usd(), '7.5')
+    await user.click(screen.getByRole('checkbox', { name: '启用广告' }))
+    await user.selectOptions(screen.getByLabelText('消费策略公会'), 'B')
+    expect(usd()).toHaveValue(0)
+    expect(screen.getByRole('checkbox', { name: '启用广告' })).toBeChecked()
+    await user.click(screen.getByRole('tab', { name: '小 R' }))
+    expect(usd()).toHaveValue(24)
+    expect(screen.getByRole('checkbox', { name: '启用广告' })).not.toBeChecked()
+    await user.click(screen.getByRole('tab', { name: '大 R' }))
+    expect(usd()).toHaveValue(90)
+    await user.selectOptions(screen.getByLabelText('消费策略公会'), 'A')
+    await user.click(screen.getByRole('tab', { name: '普通' }))
+    expect(usd()).toHaveValue(7.5)
+    expect(screen.getByRole('checkbox', { name: '启用广告' })).not.toBeChecked()
+  })
+
+  it('edits ordered priority subsets while preserving other tiers', async () => {
+    const user = userEvent.setup()
+    render(<ParameterSidebarHarness />)
+    await user.click(screen.getByText('公会消费策略'))
+    const priority = () => screen.getAllByRole('listitem').map(item => item.getAttribute('data-offer-id'))
+    expect(priority()).toEqual(['ad-or-diamond-ad', 'ad-or-diamond-diamond', 'flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600'])
+    await user.click(screen.getByRole('button', { name: '宣传单 上移' }))
+    expect(priority().slice(0, 3)).toEqual(['ad-or-diamond-ad', 'flyer', 'ad-or-diamond-diamond'])
+    await user.click(screen.getByRole('button', { name: '奖励广告恢复 移除' }))
+    expect(priority()).not.toContain('ad-or-diamond-ad')
+    await user.click(screen.getByRole('tab', { name: '小 R' }))
+    expect(priority()).toEqual(['flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600', 'ad-or-diamond-ad', 'ad-or-diamond-diamond'])
+    await user.click(screen.getByRole('tab', { name: '普通' }))
+    expect(priority()[0]).toBe('flyer')
+    await user.selectOptions(screen.getByLabelText('添加购买商品'), 'ad-or-diamond-ad')
+    expect(priority().at(-1)).toBe('ad-or-diamond-ad')
+    expect(priority()).toHaveLength(7)
+  })
   it('keeps the slider and numeric capacity input synchronized', async () => {
     const user = userEvent.setup()
     render(<ParameterSidebarHarness />)

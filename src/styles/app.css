@@ -419,6 +419,10 @@ input[aria-invalid='true'] {
   min-height: 330px;
 }
 
+.chart--small {
+  min-height: 160px;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
