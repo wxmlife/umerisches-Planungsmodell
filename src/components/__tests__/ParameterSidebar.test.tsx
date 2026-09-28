@@ -19,7 +19,7 @@ function SimulatorHarness() {
   return (
     <>
       <ParameterSidebar
-        scenario={state.draft}
+        scenario={state.draftScenario}
         validation={state.validation}
         analysis={state.analysis}
         analysisValidation={state.analysisValidation}
@@ -50,8 +50,8 @@ describe('ParameterSidebar', () => {
     const priority = ['flyer']
     const updated = simulatorReducer(state, { type: 'set-string-array', path: 'guilds.0.purchasePolicies.normal.supplyPriority', value: priority })
     priority.push('cheer-stick')
-    expect(updated.draft.guilds[0].purchasePolicies.normal.supplyPriority).toEqual(['flyer'])
-    expect(state.draft.guilds[0].purchasePolicies.normal.supplyPriority).toHaveLength(7)
+    expect(updated.draftScenario.guilds[0].purchasePolicies.normal.supplyPriority).toEqual(['flyer'])
+    expect(state.draftScenario.guilds[0].purchasePolicies.normal.supplyPriority).toHaveLength(7)
   })
 
   it('defaults the per-person version budget scan to include the whale budget', () => {
@@ -105,13 +105,18 @@ describe('ParameterSidebar', () => {
     expect(priority().at(-1)).toBe('ad-or-diamond-ad')
     expect(priority()).toHaveLength(7)
   })
-  it('keeps the slider and numeric capacity input synchronized', async () => {
+  it('supports direct numeric entry without slider rails and retains numeric guidance', async () => {
     const user = userEvent.setup()
     render(<ParameterSidebarHarness />)
     const number = screen.getByLabelText('粉丝池上限')
     await user.clear(number)
     await user.type(number, '4000')
-    expect(screen.getByTestId('fans.capacity-slider')).toHaveValue('4000')
+    expect(number).toHaveValue(4000)
+    expect(screen.queryAllByRole('slider')).toHaveLength(0)
+    expect(number).toHaveAttribute('min', '100')
+    expect(number).toHaveAttribute('max', '20000')
+    expect(number).toHaveAttribute('step', '100')
+    expect(number).toHaveAccessibleDescription(/100.*20000.*100/)
   })
 
   it('shows all seven approved parameter groups', () => {
@@ -174,5 +179,14 @@ describe('ParameterSidebar', () => {
 
     expect(screen.getByText('扫描最大值不能小于最小值')).toBeVisible()
     expect(min).toHaveAccessibleDescription('扫描最大值不能小于最小值')
+  })
+  it('shows invalid target node values beside the direct numeric control', async () => {
+    const user = userEvent.setup()
+    render(<ParameterSidebarHarness />)
+    const target = screen.getByLabelText('目标普通节点')
+    await user.clear(target)
+    await user.type(target, '-1')
+    expect(target).toHaveAttribute('aria-invalid', 'true')
+    expect(target).toHaveAccessibleDescription('目标节点数必须是非负整数')
   })
 })

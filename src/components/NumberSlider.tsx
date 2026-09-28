@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 export interface NumberSliderProps {
   path: string
@@ -8,6 +8,7 @@ export interface NumberSliderProps {
   step: number
   value: number
   error?: string
+  idPrefix?: string
   onChange: (path: string, value: number) => void
 }
 
@@ -19,8 +20,11 @@ export function NumberSlider({
   step,
   value,
   error,
+  idPrefix = 'parameter',
   onChange,
 }: NumberSliderProps) {
+  const uniqueId = useId()
+  const id = `${idPrefix}-${uniqueId}-${path}`
   const [inputState, setInputState] = useState({
     sourceValue: value,
     text: String(value),
@@ -39,34 +43,22 @@ export function NumberSlider({
   return (
     <div className="number-control" data-path={path}>
       <div className="number-control__header">
-        <label htmlFor={`${path}-number`}>{label}</label>
+        <label htmlFor={`${id}-number`}>{label}</label>
         <input
-          id={`${path}-number`}
+          id={`${id}-number`}
           type="number"
           min={min}
           max={max}
           step={step}
           value={textValue}
           aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${path}-error` : undefined}
+          aria-describedby={error ? `${id}-error` : `${id}-guidance`}
           onChange={(event) => updateFromText(event.target.value)}
+          onBlur={() => { if (textValue.trim() === '') setInputState({ sourceValue: value, text: String(value) }) }}
         />
       </div>
-      <input
-        aria-label={`${label}滑杆`}
-        data-testid={`${path}-slider`}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={Math.min(max, Math.max(min, value))}
-        onChange={(event) => {
-          const parsed = Number(event.target.value)
-          setInputState({ sourceValue: value, text: event.target.value })
-          onChange(path, parsed)
-        }}
-      />
-      {error ? <p className="field-error" id={`${path}-error`}>{error}</p> : null}
+      <small className="number-control__guidance" id={`${id}-guidance`}>参考范围 {min}–{max} · 步长 {step}</small>
+      {error ? <p className="field-error" id={`${id}-error`}>{error}</p> : null}
     </div>
   )
 }

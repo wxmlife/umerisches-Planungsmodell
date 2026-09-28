@@ -78,12 +78,6 @@ input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 
-input[type='range'] {
-  width: 100%;
-  min-height: 32px;
-  accent-color: var(--blue-500);
-}
-
 select {
   padding: 8px 34px 8px 10px;
 }
@@ -365,10 +359,74 @@ input[aria-invalid='true'] {
   transition: opacity 160ms ease, filter 160ms ease;
 }
 
-.dashboard-grid[data-stale='true'] {
+.result-content[data-stale='true'] {
   opacity: 0.52;
   filter: saturate(0.7);
 }
+
+.result-content {
+  min-width: 0;
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.number-control__guidance {
+  color: var(--text-muted);
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.battle-settings, .formula-details, .local-recovery {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.battle-settings > summary, .formula-details > summary, .local-recovery summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.battle-quick-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.battle-loss-controls { grid-column: 1 / -1; }
+.scope-note, .calibration-derived, .formula-editor p, .local-recovery p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+.formula-tabs, .formula-actions, .local-recovery__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.formula-tabs button { white-space: normal; overflow-wrap: anywhere; }
+.formula-tabs [aria-selected='true'] { border-color: var(--pink-500); }
+.formula-status { margin: var(--space-3) 0; font-size: 0.85rem; }
+.formula-editor textarea, .local-recovery textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 8rem;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: #11172b;
+  border: 1px solid #536078;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.formula-reference { overflow-wrap: anywhere; }
+.local-recovery__header { justify-content: space-between; }
+.reset-confirmation { border: 1px solid var(--pink-500); padding: var(--space-4); border-radius: var(--radius-sm); }
 
 .dashboard-card {
   padding: var(--space-5);

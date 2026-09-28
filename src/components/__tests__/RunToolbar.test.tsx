@@ -19,7 +19,7 @@ function SimulatorHarness() {
   return (
     <>
       <ParameterSidebar
-        scenario={state.draft}
+        scenario={state.draftScenario}
         validation={state.validation}
         onSetNumber={(path, value) => dispatch({ type: 'set-number', path, value })}
       />

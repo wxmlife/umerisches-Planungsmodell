@@ -17,6 +17,7 @@ describe('BattleCalibrationPanel', () => {
     expect(screen.getByRole('heading', { name: '连续挑战曲线' })).toBeVisible()
     expect(screen.getByText('1,000 vs 1,000')).toBeVisible()
     expect(screen.getByText('2,000 vs 1,000')).toBeVisible()
+    expect(screen.getByText(/已应用原始战力：普通 100,000.*小 R 300,000.*大 R 900,000/)).toBeVisible()
   })
 
   it('uses the editable tier powers and explicit style matchup', () => {

@@ -16,9 +16,13 @@ import { EChart } from './EChart'
 export function CumulativeSpendPanel({
   events,
   scenario,
+  stale = false,
+  busy = false,
 }: {
   events: SpendEvent[]
   scenario: Scenario
+  stale?: boolean
+  busy?: boolean
 }) {
   const [dimension, setDimension] = useState<SpendDimension>('guild')
   const [metric, setMetric] = useState<SpendMetric>('usd')
@@ -48,6 +52,7 @@ export function CumulativeSpendPanel({
         <label>消费指标<select value={metric} onChange={event => setMetric(event.target.value as SpendMetric)}><option value="usd">现金</option><option value="diamond">钻石</option><option value="ad">广告</option></select></label>
         <label>分拆维度<select value={dimension} onChange={(event) => setDimension(event.target.value as SpendDimension)}><option value="guild">公会</option><option value="tier">玩家档位</option><option value="offer">商品</option></select></label>
       </header>
+      <div className="result-content" data-stale={String(stale)} aria-busy={busy}>
       <div className="metric-grid">
         <article className="metric-card"><span>现金累计</span><strong>${totals.cashUsd.toFixed(2)}</strong></article>
         <article className="metric-card"><span>钻石累计</span><strong>{totals.diamonds.toLocaleString('zh-CN')} 钻</strong></article>
@@ -68,6 +73,7 @@ export function CumulativeSpendPanel({
       </div>
       {events.length === 0 ? <p>暂无消费事件，当前目录各组累计消费均为零。</p> : null}
       <EChart option={option} className={events.length === 0 ? 'chart--small' : ''} label={`确定性基准累计${{ usd: '现金', diamond: '钻石', ad: '广告' }[metric]}消费`} />
+      </div>
     </section>
   )
 }

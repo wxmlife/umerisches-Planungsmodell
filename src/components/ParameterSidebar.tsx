@@ -69,6 +69,7 @@ export function ParameterSidebar({
   ) => (
     <NumberSlider
       key={path}
+      idPrefix="sidebar"
       path={path}
       label={label}
       value={value}
@@ -277,9 +278,9 @@ export function ParameterSidebar({
                 ))}
               </select>
             </label>
-            <NumberSlider path="targetNodes.normal" label="目标普通节点" value={analysis.targetNodes.normal} min={0} max={100} step={1} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
-            <NumberSlider path="targetNodes.core" label="目标核心节点" value={analysis.targetNodes.core} min={0} max={50} step={1} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
-            <NumberSlider path="targetNodes.center" label="目标中心节点" value={analysis.targetNodes.center} min={0} max={10} step={1} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
+            <NumberSlider path="targetNodes.normal" label="目标普通节点" value={analysis.targetNodes.normal} min={0} max={100} step={1} error={analysisValidation ? errorFor('analysis.targetNodes.normal', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
+            <NumberSlider path="targetNodes.core" label="目标核心节点" value={analysis.targetNodes.core} min={0} max={50} step={1} error={analysisValidation ? errorFor('analysis.targetNodes.core', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
+            <NumberSlider path="targetNodes.center" label="目标中心节点" value={analysis.targetNodes.center} min={0} max={10} step={1} error={analysisValidation ? errorFor('analysis.targetNodes.center', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
             <NumberSlider path="sweepMin" label="预算扫描最小值" value={analysis.sweepMin} min={0} max={1000} step={1} error={analysisValidation ? errorFor('analysis.sweepMin', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
             <NumberSlider path="sweepMax" label="预算扫描最大值" value={analysis.sweepMax} min={0} max={1000} step={1} error={analysisValidation ? errorFor('analysis.sweepMax', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />
             <NumberSlider path="sweepStep" label="预算扫描步长" value={analysis.sweepStep} min={0.01} max={1000} step={0.01} error={analysisValidation ? errorFor('analysis.sweepStep', analysisValidation) : undefined} onChange={(path, value) => onSetAnalysisNumber?.(path, value)} />

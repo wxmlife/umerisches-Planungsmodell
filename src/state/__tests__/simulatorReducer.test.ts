@@ -10,13 +10,14 @@ describe('simulatorReducer', () => {
     const initial = createSimulatorState(DEFAULT_SCENARIO)
     const openCenter = simulatorReducer(initial, { type: 'set-number', path: 'season.centerUnlockDay', value: 1 })
     const edited = simulatorReducer(openCenter, { type: 'set-number', path: 'season.days', value: days })
-    expect(edited.deterministicScenario.season.days).toBe(6)
+    expect(edited.appliedScenario.season.days).toBe(6)
     expect(edited.deterministic).toBe(initial.deterministic)
-    const late = simulatorReducer(edited, { type: 'deterministic-result', scenario: openCenter.lastValidScenario, result: initial.deterministic })
-    expect(late.deterministicScenario.season.days).toBe(6)
-    const applied = simulatorReducer(edited, { type: 'deterministic-result', scenario: edited.lastValidScenario, result: runSeason(edited.lastValidScenario, createSeededRng(1), 'deterministic') })
-    expect(applied.deterministicScenario.season.days).toBe(days)
-    expect(applied.deterministicScenario).not.toBe(applied.lastValidScenario)
+    const late = simulatorReducer(edited, { type: 'deterministic-result', revision: openCenter.revision, result: initial.deterministic, calibration: initial.calibration })
+    expect(late.appliedScenario.season.days).toBe(6)
+    const pending = simulatorReducer(edited, { type: 'validate-draft', revision: edited.revision })
+    const applied = simulatorReducer(pending, { type: 'deterministic-result', revision: edited.revision, result: runSeason(edited.draftScenario, createSeededRng(1), 'deterministic'), calibration: initial.calibration })
+    expect(applied.appliedScenario.season.days).toBe(days)
+    expect(applied.appliedScenario).not.toBe(applied.draftScenario)
   })
   it('invalidates stochastic output and ignores a late worker result after a valid edit', () => {
     const initial = {
@@ -42,7 +43,7 @@ describe('simulatorReducer', () => {
     expect(afterLateResult.monteCarlo).toBeNull()
   })
 
-  it('retains the last stochastic output while an invalid draft is shown stale', () => {
+  it('clears stochastic output while an invalid draft keeps deterministic results stale', () => {
     const initial = {
       ...createSimulatorState(DEFAULT_SCENARIO),
       monteCarlo: SAMPLE_MONTE_CARLO_RESULT,
@@ -54,7 +55,8 @@ describe('simulatorReducer', () => {
     })
 
     expect(edited.validation.valid).toBe(false)
-    expect(edited.monteCarlo).toBe(SAMPLE_MONTE_CARLO_RESULT)
+    expect(edited.monteCarlo).toBeNull()
+    expect(edited.deterministic).toBe(initial.deterministic)
     expect(edited.stale).toBe(true)
   })
 

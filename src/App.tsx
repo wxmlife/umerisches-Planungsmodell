@@ -8,6 +8,8 @@ import { RunToolbar } from './components/RunToolbar'
 import { SeasonScorePanel } from './components/SeasonScorePanel'
 import { SensitivityPanel } from './components/SensitivityPanel'
 import { SupplyEfficiencyPanel } from './components/SupplyEfficiencyPanel'
+import { LocalRecoveryPanel } from './components/LocalRecoveryPanel'
+import { compileFormula } from './domain/formula/compiler'
 import type { SensitivityMetric, SensitivityParameter } from './domain/sensitivity'
 import type { Scenario } from './domain/types'
 import { useSimulator } from './state/useSimulator'
@@ -46,9 +48,11 @@ function RecoverySummary({ scenario }: { scenario: Scenario }) {
 function App() {
   const simulator = useSimulator()
   const { state } = simulator
-  const displayScenario = state.validation.valid
-    ? state.draft
-    : state.lastValidScenario
+  const displayScenario = state.appliedScenario
+  const busy = state.pendingScenario !== null || state.validatedRevision !== state.revision
+  const resultProps = { className: 'result-content', 'data-stale': String(state.stale), 'aria-busy': busy }
+  const scannedVariable = state.analysis.sensitivityParameter === 'battle.alpha' ? 'alpha' : state.analysis.sensitivityParameter === 'battle.beta' ? 'beta' : null
+  const unreferencedParameter = scannedVariable && !compileFormula('preRandomPower', displayScenario.battle.formulas.preRandomPower).referencedVariables.includes(scannedVariable)
   const statusMessage = resultStatusMessage({
     valid: state.validation.valid,
     stale: state.stale,
@@ -58,7 +62,7 @@ function App() {
   return (
     <div className="app-shell">
       <ParameterSidebar
-        scenario={state.draft}
+        scenario={state.draftScenario}
         validation={state.validation}
         analysisValidation={state.analysisValidation}
         analysis={state.analysis}
@@ -79,7 +83,7 @@ function App() {
           <p>聚合地图模型 · 确定性基准自动更新 · 随机分析在本机运行</p>
         </header>
         <RunToolbar
-          valid={state.validation.valid}
+          valid={state.validation.valid && !state.stale}
           sensitivityValid={state.analysisValidation.valid}
           status={state.runStatus}
           progress={state.progress}
@@ -88,22 +92,25 @@ function App() {
           onRunSensitivity={simulator.runSensitivity}
           onCancel={simulator.cancel}
         />
-        <RecoverySummary scenario={displayScenario} />
+        <LocalRecoveryPanel notice={simulator.storageNotice} recoveryRaw={simulator.recoveryRaw} onClearRecovery={simulator.clearRecovery} onReset={simulator.resetDefaults} />
+        <div {...resultProps}><RecoverySummary scenario={displayScenario} /></div>
         {statusMessage ? <p className="stale-notice" role="status">{statusMessage}</p> : null}
         <div
           className="dashboard-grid"
           data-testid="result-grid"
-          data-stale={String(state.stale)}
-          aria-busy={state.stale}
         >
-          <SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} seasonDays={displayScenario.season.days} />
-          <BattleCalibrationPanel scenario={displayScenario} />
-          <DailyBreakdownPanel result={state.deterministic} />
-          <NodeFanPanel result={state.deterministic} guildId={state.analysis.targetGuildId} />
-          <RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} />
-          <SupplyEfficiencyPanel guildId={state.analysis.targetGuildId} season={state.deterministic} sensitivity={state.sensitivity} targetNodes={state.analysis.targetNodes} />
-          <CumulativeSpendPanel events={state.deterministic.spendEvents} scenario={state.deterministicScenario} />
+          <div {...resultProps} className="result-content dashboard-card--wide" data-testid="season-results"><SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} seasonDays={displayScenario.season.days} /></div>
+          <BattleCalibrationPanel scenario={displayScenario} calibration={state.calibration} draftScenario={state.draftScenario} validation={state.validation} formulaErrors={state.formulaErrors} stale={state.stale} pending={busy} onSetNumber={simulator.setNumber} onSetString={simulator.setString} onRestore={simulator.restoreFormula} />
+          <div {...resultProps}><DailyBreakdownPanel result={state.deterministic} /></div>
+          <div {...resultProps}><NodeFanPanel result={state.deterministic} guildId={state.analysis.targetGuildId} /></div>
+          <div {...resultProps} className="result-content dashboard-card--wide"><RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} /></div>
+          <div {...resultProps} className="result-content dashboard-card--wide"><SupplyEfficiencyPanel guildId={state.analysis.targetGuildId} season={state.deterministic} sensitivity={state.sensitivity} targetNodes={state.analysis.targetNodes} /></div>
+          <CumulativeSpendPanel events={state.deterministic.spendEvents} scenario={displayScenario} stale={state.stale} busy={busy} />
+          <div className="dashboard-card--wide">
+          {unreferencedParameter ? <p className="scope-note">当前公式未引用该参数；敏感性曲线可能为水平线。</p> : null}
           <SensitivityPanel
+            stale={state.stale}
+            busy={busy}
             result={state.sensitivity}
             parameter={state.analysis.sensitivityParameter}
             metric={state.analysis.sensitivityMetric}
@@ -114,6 +121,7 @@ function App() {
               simulator.setAnalysisChoice('sensitivityMetric', metric)
             )}
           />
+          </div>
         </div>
       </main>
     </div>

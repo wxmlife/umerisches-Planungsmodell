@@ -30,12 +30,16 @@ export function SensitivityPanel({
   metric = 'firstPlaceProbability',
   onParameterChange,
   onMetricChange,
+  stale = false,
+  busy = false,
 }: {
   result: SensitivityResult | null
   parameter?: SensitivityParameter
   metric?: SensitivityMetric
   onParameterChange?: (parameter: SensitivityParameter) => void
   onMetricChange?: (metric: SensitivityMetric) => void
+  stale?: boolean
+  busy?: boolean
 }) {
   const option = useMemo(() => buildSensitivityOption(result), [result])
   return (
@@ -47,7 +51,7 @@ export function SensitivityPanel({
           <label>结果指标<select value={metric} onChange={(event) => onMetricChange?.(event.target.value as SensitivityMetric)}>{METRICS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         </div>
       </header>
-      <EChart option={option} label="单参数敏感性曲线" />
+      <div className="result-content" data-stale={String(stale)} aria-busy={busy}><EChart option={option} label="单参数敏感性曲线" /></div>
     </section>
   )
 }
