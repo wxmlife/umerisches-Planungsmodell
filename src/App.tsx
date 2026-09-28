@@ -95,8 +95,8 @@ function App() {
           data-stale={String(state.stale)}
           aria-busy={state.stale}
         >
+          <SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} seasonDays={displayScenario.season.days} />
           <BattleCalibrationPanel scenario={displayScenario} />
-          <SeasonScorePanel deterministic={state.deterministic} monteCarlo={state.monteCarlo} />
           <DailyBreakdownPanel result={state.deterministic} />
           <NodeFanPanel result={state.deterministic} guildId={state.analysis.targetGuildId} />
           <RankingPanel scenario={displayScenario} deterministic={state.deterministic} monteCarlo={state.monteCarlo} />

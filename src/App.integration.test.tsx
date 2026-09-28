@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkerRequest, WorkerResponse } from './worker/protocol'
@@ -43,6 +43,37 @@ describe('App integration', () => {
   })
 
   afterEach(() => vi.unstubAllGlobals())
+
+  it('places the season score card first and battle calibration immediately after it', () => {
+    render(<App />)
+    const cards = screen.getByTestId('result-grid').children
+    expect(within(cards[0] as HTMLElement).getByRole('heading', { name: '6 日积分曲线' })).toBeVisible()
+    expect(within(cards[1] as HTMLElement).getByRole('heading', { name: '连续挑战曲线' })).toBeVisible()
+  })
+
+  it.each([1, 6, 14])('uses the configured %i day count in the season score title and accessible chart label', async (days) => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.clear(screen.getByLabelText('中心开放日'))
+    await user.type(screen.getByLabelText('中心开放日'), '1')
+    await user.clear(screen.getByLabelText('赛季战斗日'))
+    await user.type(screen.getByLabelText('赛季战斗日'), String(days))
+    expect(await screen.findByRole('heading', { name: `${days} 日积分曲线` })).toBeVisible()
+    expect(screen.getByRole('img', { name: `公会的 ${days} 日累计积分` })).toBeInTheDocument()
+    expect(screen.queryByText('SIX-DAY SCORE')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['A', '#57A8FF'], ['B', '#F3C665'], ['C', '#EF7AA8'], ['D', '#7DD7C4'],
+  ])('colors both target-guild labels with the main identity color of %s', async (id, color) => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.selectOptions(screen.getByLabelText('目标公会'), id)
+    for (const title of ['节点与粉丝曲线', '补给与效率曲线']) {
+      const card = screen.getByRole('heading', { name: title }).closest('section')!
+      expect(within(card).getByText(id, { selector: '.card-header span' })).toHaveStyle({ color })
+    }
+  })
 
   it('updates derived recovery numbers, calibration, and stale state from one shared scenario', async () => {
     const user = userEvent.setup()

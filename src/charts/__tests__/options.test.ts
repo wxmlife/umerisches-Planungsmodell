@@ -1,13 +1,65 @@
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_MONTE_CARLO_RESULT } from '../../test/fixtures'
+import { DEFAULT_SCENARIO } from '../../domain/defaults'
+import { createSeededRng } from '../../domain/rng'
+import { runSeason } from '../../domain/season'
 import {
   buildBattleOption,
   buildCumulativeSpendOption,
+  buildDailyBreakdownOption,
   buildScoreOption,
   buildSupplyEfficiencyOption,
 } from '../options'
 
 describe('chart option builders', () => {
+  const identities = [
+    ['A', '#57A8FF', '#2F7ED7', '#8CC8FF'],
+    ['B', '#F3C665', '#C79425', '#F8D98F'],
+    ['C', '#EF7AA8', '#CF4E82', '#F6A7C5'],
+    ['D', '#7DD7C4', '#43AD98', '#A5E4D7'],
+    ['联盟', '#F3C665', '#C79425', '#F8D98F'],
+  ]
+  const scenario = structuredClone(DEFAULT_SCENARIO)
+  scenario.guilds.push({ ...structuredClone(scenario.guilds[0]), id: '联盟' })
+  const season = runSeason(scenario, createSeededRng(1), 'deterministic')
+
+  it('sets explicit deterministic line and legend colors by guild identity despite snapshot reordering', () => {
+    for (const result of [season, { ...season, snapshots: season.snapshots.toReversed() }]) {
+      const option = buildScoreOption(result)
+      for (const [id, main] of identities) {
+        const series = option.series.find((item) => item.name === id)
+        expect(series?.lineStyle?.color).toBe(main)
+        expect(series?.itemStyle?.color).toBe(main)
+      }
+    }
+  })
+
+  it('sets explicit MC median, interval, and legend colors independently of guild entry order', () => {
+    const entries = identities.map(([id]) => [id, SAMPLE_MONTE_CARLO_RESULT.guilds.A] as const)
+    for (const guilds of [Object.fromEntries(entries), Object.fromEntries(entries.toReversed())]) {
+      const option = buildScoreOption({ ...SAMPLE_MONTE_CARLO_RESULT, guilds })
+      for (const [id, main] of identities) {
+        const median = option.series.find((item) => item.name === `${id} 中位数`)
+        const interval = option.series.find((item) => item.name === `${id} P10–P90`)
+        expect(median?.lineStyle?.color).toBe(main)
+        expect(median?.itemStyle?.color).toBe(main)
+        expect(interval?.lineStyle?.color).toBe(main)
+        expect(interval?.itemStyle?.color).toBe(main)
+        expect(interval?.areaStyle).toMatchObject({ color: main, opacity: 0.16 })
+      }
+    }
+  })
+
+  it('sets explicit daily battle and holding variants by guild identity after guild reordering', () => {
+    for (const guilds of [season.guilds, Object.fromEntries(Object.entries(season.guilds).toReversed())]) {
+      const option = buildDailyBreakdownOption({ ...season, guilds })
+      for (const [id, , attack, holding] of identities) {
+        expect(option.series.find((item) => item.name === `${id} 战斗`)?.itemStyle?.color).toBe(attack)
+        expect(option.series.find((item) => item.name === `${id} 占领`)?.itemStyle?.color).toBe(holding)
+      }
+    }
+  })
+
   it('builds a P10 to P90 band around the median', () => {
     const option = buildScoreOption(SAMPLE_MONTE_CARLO_RESULT)
     const names = option.series.map((series) => series.name)

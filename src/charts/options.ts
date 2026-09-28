@@ -5,6 +5,7 @@ import type { SeasonResult, SeasonSnapshot } from '../domain/season'
 import type { SensitivityResult } from '../domain/sensitivity'
 import type { GuildSeasonResult } from '../domain/season'
 import { monteCarloScoreTooltip, seasonChartTooltip } from './tooltip'
+import { resolveGuildColors } from './colors'
 
 export interface DashboardSeries {
   name: string
@@ -39,12 +40,12 @@ export interface CumulativeSpendSeries {
   byGroup: Record<string, SpendPoint[]>
 }
 
-const GUILD_COLORS = ['#57a8ff', '#f3c665', '#ef7aa8', '#7dd7c4']
+const METRIC_COLORS = ['A', 'B', 'C', 'D'].map((id) => resolveGuildColors(id).main)
 
 function baseOption(): Omit<DashboardChartOption, 'series'> {
   return {
     animationDuration: 240,
-    color: GUILD_COLORS,
+    color: METRIC_COLORS,
     grid: { left: 56, right: 24, top: 42, bottom: 42, containLabel: true },
     legend: { top: 4, textStyle: { color: '#aebbd3' } },
     tooltip: { trigger: 'axis', confine: false },
@@ -58,16 +59,18 @@ export function buildScoreOption(
 ): DashboardChartOption {
   if ('runsCompleted' in result) {
     const series: DashboardSeries[] = []
-    Object.entries(result.guilds).forEach(([guildId, guild], index) => {
+    Object.entries(result.guilds).forEach(([guildId, guild]) => {
       const stack = `${guildId}-interval`
+      const color = resolveGuildColors(guildId).main
       series.push({
         name: `${guildId} P10 基线`,
         type: 'line',
         data: guild.scoreSeries.map((point) => [point.minute, point.p10]),
         stack,
         symbol: 'none',
-        lineStyle: { opacity: 0 },
-        areaStyle: { opacity: 0 },
+        lineStyle: { opacity: 0, color },
+        areaStyle: { opacity: 0, color },
+        itemStyle: { color },
         emphasis: { disabled: true },
         tooltip: { show: false },
         silent: true,
@@ -78,8 +81,9 @@ export function buildScoreOption(
         data: guild.scoreSeries.map((point) => [point.minute, point.p90 - point.p10]),
         stack,
         symbol: 'none',
-        lineStyle: { opacity: 0 },
-        areaStyle: { opacity: 0.16, color: GUILD_COLORS[index % GUILD_COLORS.length] },
+        lineStyle: { opacity: 0, color },
+        areaStyle: { opacity: 0.16, color },
+        itemStyle: { color },
         tooltip: { show: false },
         silent: true,
       })
@@ -91,7 +95,8 @@ export function buildScoreOption(
           meta: { guildId, quantiles: point },
         })),
         symbol: 'none',
-        lineStyle: { width: 2, color: GUILD_COLORS[index % GUILD_COLORS.length] },
+        lineStyle: { width: 2, color },
+        itemStyle: { color },
       })
     })
     return {
@@ -111,6 +116,8 @@ export function buildScoreOption(
     name: guildId,
     type: 'line',
     symbol: 'none',
+    lineStyle: { color: resolveGuildColors(guildId).main },
+    itemStyle: { color: resolveGuildColors(guildId).main },
     data: snapshots.map((snapshot, index) => ({
       value: [snapshot.minute, snapshot.totalScore],
       meta: { snapshot, previous: snapshots[index - 1] },
@@ -181,10 +188,12 @@ export function buildDailyBreakdownOption(result: SeasonResult): DashboardChartO
   const series: DashboardSeries[] = []
   for (const guildId of guildIds) {
     const days = endOfDaySnapshots(result, guildId)
+    const colors = resolveGuildColors(guildId)
     series.push({
       name: `${guildId} 战斗`,
       type: 'bar',
       stack: guildId,
+      itemStyle: { color: colors.attack },
       data: days.map((snapshot, index) => [
         index + 1,
         snapshot.attackScore - (days[index - 1]?.attackScore ?? 0),
@@ -194,6 +203,7 @@ export function buildDailyBreakdownOption(result: SeasonResult): DashboardChartO
       name: `${guildId} 占领`,
       type: 'bar',
       stack: guildId,
+      itemStyle: { color: colors.holding },
       data: days.map((snapshot, index) => [
         index + 1,
         snapshot.holdingScore - (days[index - 1]?.holdingScore ?? 0),

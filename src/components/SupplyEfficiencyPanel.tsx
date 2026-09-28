@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { buildSupplyEfficiencyOption } from '../charts/options'
+import { resolveGuildColors } from '../charts/colors'
 import type { NodeKind } from '../domain/types'
 import type { SeasonResult } from '../domain/season'
 import {
@@ -39,7 +40,7 @@ export function SupplyEfficiencyPanel({
 
   return (
     <section className="dashboard-card dashboard-card--wide" aria-labelledby="supply-efficiency-title">
-      <header className="card-header"><div><p className="eyebrow">SUPPLY EFFICIENCY</p><h2 id="supply-efficiency-title">补给与效率曲线</h2></div><span>{guildId}</span></header>
+      <header className="card-header"><div><p className="eyebrow">SUPPLY EFFICIENCY</p><h2 id="supply-efficiency-title">补给与效率曲线</h2></div><span style={{ color: resolveGuildColors(guildId).main }}>{guildId}</span></header>
       <div className="metric-grid">
         <article className="metric-card"><span>第一名概率 50%</span><strong>{thresholds.dailyBudget50 === null ? unavailable : `$${thresholds.dailyBudget50.toFixed(2)} / 日`}</strong></article>
         <article className="metric-card"><span>第一名概率 80%</span><strong>{thresholds.dailyBudget80 === null ? unavailable : `$${thresholds.dailyBudget80.toFixed(2)} / 日`}</strong></article>
