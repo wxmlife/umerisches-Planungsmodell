@@ -15,6 +15,7 @@ export interface BattleConfig {
   randomMin: number
   randomMax: number
   styleAdvantage: number
+  calibrationStyle: 'neutral' | 'attacker-advantage' | 'attacker-disadvantage'
   homeLossFactor: number
   lossBands: LossBand[]
 }

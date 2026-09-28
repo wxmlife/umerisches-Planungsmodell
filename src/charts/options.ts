@@ -4,7 +4,7 @@ import type { MonteCarloResult } from '../domain/aggregate'
 import type { SeasonResult, SeasonSnapshot } from '../domain/season'
 import type { SensitivityResult } from '../domain/sensitivity'
 import type { GuildSeasonResult } from '../domain/season'
-import { seasonChartTooltip } from './tooltip'
+import { monteCarloScoreTooltip, seasonChartTooltip } from './tooltip'
 
 export interface DashboardSeries {
   name: string
@@ -18,6 +18,8 @@ export interface DashboardSeries {
   areaStyle?: Record<string, unknown>
   itemStyle?: Record<string, unknown>
   emphasis?: Record<string, unknown>
+  tooltip?: Record<string, unknown>
+  silent?: boolean
   yAxisIndex?: number
 }
 
@@ -67,6 +69,8 @@ export function buildScoreOption(
         lineStyle: { opacity: 0 },
         areaStyle: { opacity: 0 },
         emphasis: { disabled: true },
+        tooltip: { show: false },
+        silent: true,
       })
       series.push({
         name: `${guildId} P10–P90`,
@@ -76,16 +80,25 @@ export function buildScoreOption(
         symbol: 'none',
         lineStyle: { opacity: 0 },
         areaStyle: { opacity: 0.16, color: GUILD_COLORS[index % GUILD_COLORS.length] },
+        tooltip: { show: false },
+        silent: true,
       })
       series.push({
         name: `${guildId} 中位数`,
         type: 'line',
-        data: guild.scoreSeries.map((point) => [point.minute, point.median]),
+        data: guild.scoreSeries.map((point) => ({
+          value: [point.minute, point.median],
+          meta: { guildId, quantiles: point },
+        })),
         symbol: 'none',
         lineStyle: { width: 2, color: GUILD_COLORS[index % GUILD_COLORS.length] },
       })
     })
-    return { ...baseOption(), series }
+    return {
+      ...baseOption(),
+      tooltip: { trigger: 'axis', confine: false, formatter: monteCarloScoreTooltip },
+      series,
+    }
   }
 
   const byGuild = new Map<string, SeasonSnapshot[]>()
@@ -263,7 +276,6 @@ export function buildSupplyEfficiencyOption(
   guild: GuildSeasonResult | undefined,
   sensitivity: SensitivityResult | null,
 ): DashboardChartOption {
-  const baselineScore = sensitivity?.points[0]?.finalScore ?? 0
   const points = sensitivity?.points ?? []
   const series: DashboardSeries[] = [
     {
@@ -281,7 +293,7 @@ export function buildSupplyEfficiencyOption(
       type: 'line',
       data: points.map((point) => [
         point.x,
-        point.usd > 0 ? (point.finalScore - baselineScore) / point.usd : 0,
+        point.incrementalScorePerUsd,
       ]),
     },
     {

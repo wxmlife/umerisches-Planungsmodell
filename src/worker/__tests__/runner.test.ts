@@ -38,4 +38,13 @@ describe('Monte Carlo runner', () => {
     await runTrials({ scenario, runs: 2, seed: 1 })
     expect(scenario).toEqual(original)
   })
+
+  it('rejects an event-limited season instead of aggregating a truncated result', async () => {
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    scenario.simulation.maxEventsPerDay = 100
+
+    await expect(runTrials({ scenario, runs: 1, seed: 1 })).rejects.toThrow(
+      /单日最大事件数|event limit/i,
+    )
+  })
 })

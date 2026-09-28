@@ -1,6 +1,13 @@
 import { buildAttritionSeries } from './battle'
 import type { MonteCarloResult } from './aggregate'
-import type { NodeKind, Scenario, Tier } from './types'
+import type {
+  NodeKind,
+  Scenario,
+  Tier,
+  ValidationIssue,
+  ValidationResult,
+} from './types'
+import { validateScenario } from './validation'
 import { runTrials, type TrialHooks } from '../worker/runner'
 
 export type SensitivityParameter =
@@ -33,6 +40,7 @@ export interface SensitivityRequest {
 export interface SensitivityPoint {
   x: number
   metricValue: number
+  incrementalScorePerUsd: number
   finalScore: number
   firstPlaceProbability: number
   nodeCounts: Record<NodeKind, number>
@@ -41,6 +49,7 @@ export interface SensitivityPoint {
   ads: number
   acceptedFans: number
   wastedFans: number
+  actionCapacityBound: boolean
 }
 
 export interface SensitivityResult {
@@ -53,8 +62,18 @@ export interface SensitivityHooks extends TrialHooks {
   onPointProgress?: (completed: number, total: number) => void
 }
 
+const MAX_SENSITIVITY_POINTS = 201
+
 function parameterValues(min: number, max: number, step: number): number[] {
-  if (!(step > 0) || max < min) throw new Error('Sensitivity range must use a positive step')
+  if (![min, max, step].every(Number.isFinite)) {
+    throw new Error('敏感性扫描范围必须是有限数值')
+  }
+  if (!(step > 0)) throw new Error('敏感性扫描步长必须大于 0')
+  if (max < min) throw new Error('扫描最大值不能小于最小值')
+  const pointCount = Math.floor((max - min) / step + 1e-9) + 1
+  if (pointCount > MAX_SENSITIVITY_POINTS) {
+    throw new Error(`敏感性扫描最多支持 ${MAX_SENSITIVITY_POINTS} 个点`)
+  }
   const values: number[] = []
   for (let value = min; value <= max + step * 1e-9; value += step) {
     values.push(Number(value.toFixed(12)))
@@ -81,6 +100,45 @@ function applyParameter(
   } else {
     scenario.supply.purchasePolicies[tier].dailyUsdBudget = value
   }
+}
+
+export function validateSensitivityRequest(
+  scenario: Scenario,
+  request: Pick<
+    SensitivityRequest,
+    'parameter' | 'min' | 'max' | 'step' | 'targetGuildId' | 'targetTier'
+  >,
+): ValidationResult {
+  const issues: ValidationIssue[] = []
+  let values: number[] = []
+  try {
+    values = parameterValues(request.min, request.max, request.step)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const path = message.includes('步长') || message.includes('个点')
+      ? 'analysis.sweepStep'
+      : 'analysis.sweepMin'
+    issues.push({ path, message })
+  }
+  if (!scenario.guilds.some((guild) => guild.id === request.targetGuildId)) {
+    issues.push({ path: 'analysis.targetGuildId', message: '目标公会不存在' })
+  }
+  if (issues.length > 0) return { valid: false, issues }
+
+  const tier = request.targetTier ?? 'whale'
+  for (const value of values) {
+    const variant = structuredClone(scenario)
+    applyParameter(variant, request.parameter, value, tier)
+    const validation = validateScenario(variant)
+    if (!validation.valid) {
+      issues.push({
+        path: 'analysis.sweepMin',
+        message: `扫描值 ${value} 无效：${validation.issues[0].message}`,
+      })
+      break
+    }
+  }
+  return { valid: issues.length === 0, issues }
 }
 
 function lastMean(
@@ -116,11 +174,23 @@ function buildPoint(
     .filter(([guildId]) => guildId !== request.targetGuildId)
     .map(([, guild]) => guild.finalScore.mean)
   const battleThreeWinProbability = buildAttritionSeries(scenario.battle, {
-    attackerIdolPower: 1,
-    defenderIdolPower: 3,
+    attackerIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.small,
+    defenderIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.whale,
     attackerInitialFans: 1000,
     defenderInitialFans: 1000,
     battles: 3,
+    attackerStyleMultiplier: scenario.battle.calibrationStyle === 'attacker-advantage'
+      ? 1 + scenario.battle.styleAdvantage
+      : scenario.battle.calibrationStyle === 'attacker-disadvantage'
+        ? 1 - scenario.battle.styleAdvantage
+        : 1,
+    defenderStyleMultiplier: scenario.battle.calibrationStyle === 'attacker-advantage'
+      ? 1 - scenario.battle.styleAdvantage
+      : scenario.battle.calibrationStyle === 'attacker-disadvantage'
+        ? 1 + scenario.battle.styleAdvantage
+        : 1,
   }).at(-1)?.actualWinProbability ?? 0
   const metricValue = request.metric === 'battleThreeWinProbability'
     ? battleThreeWinProbability
@@ -135,6 +205,7 @@ function buildPoint(
   return {
     x,
     metricValue,
+    incrementalScorePerUsd: 0,
     finalScore,
     firstPlaceProbability,
     nodeCounts,
@@ -143,6 +214,10 @@ function buildPoint(
     ads: target.spend.ads.mean,
     acceptedFans,
     wastedFans,
+    actionCapacityBound: (
+      target.actionCapacityBlocks.formation.mean
+      + target.actionCapacityBlocks.cooldown.mean
+    ) > 0,
   }
 }
 
@@ -151,10 +226,26 @@ export async function runSensitivity(
   request: SensitivityRequest,
   hooks: SensitivityHooks = {},
 ): Promise<SensitivityResult> {
+  const validation = validateSensitivityRequest(scenario, request)
+  if (!validation.valid) {
+    throw new Error(validation.issues.map((issue) => issue.message).join('；'))
+  }
   const values = parameterValues(request.min, request.max, request.step)
   const points: SensitivityPoint[] = []
   const tier = request.targetTier ?? 'whale'
   let cancelled = false
+  let zeroBudgetControl: SensitivityPoint | null = null
+
+  if (request.parameter === 'supply.dailyUsdBudget' && !values.includes(0)) {
+    const baseline = structuredClone(scenario)
+    applyParameter(baseline, request.parameter, 0, tier)
+    const result = await runTrials(
+      { scenario: baseline, runs: request.runs, seed: request.seed },
+      { isCancelled: hooks.isCancelled },
+    )
+    if (result.cancelled) return { request, points, cancelled: true }
+    zeroBudgetControl = buildPoint(0, request, baseline, result)
+  }
 
   for (let index = 0; index < values.length; index += 1) {
     if (hooks.isCancelled?.()) {
@@ -176,12 +267,18 @@ export async function runSensitivity(
     if ((index + 1) % 5 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
   }
 
-  if (request.metric === 'incrementalScorePerUsd') {
-    const baselineScore = points[0]?.finalScore ?? 0
+  const baseline = zeroBudgetControl
+    ?? points.find((point) => point.x === 0)
+    ?? points[0]
+  if (baseline) {
     for (const point of points) {
-      point.metricValue = point.usd > 0
-        ? (point.finalScore - baselineScore) / point.usd
+      const incrementalUsd = point.usd - baseline.usd
+      point.incrementalScorePerUsd = incrementalUsd > 0
+        ? (point.finalScore - baseline.finalScore) / incrementalUsd
         : 0
+      if (request.metric === 'incrementalScorePerUsd') {
+        point.metricValue = point.incrementalScorePerUsd
+      }
     }
   }
 

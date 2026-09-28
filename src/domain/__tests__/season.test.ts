@@ -19,6 +19,34 @@ describe('six-day season engine', () => {
     scenario.guilds = [scenario.guilds[0]]
     const result = runSeason(scenario, createSeededRng(1), 'deterministic')
     expect(result.guilds.A.maxGarrisonsPerPlayer).toBe(1)
+    expect(result.guilds.A.actionCapacityBlocks.formation).toBeGreaterThan(0)
+  })
+
+  it('recomputes recovery readiness when defeated fans return to the pool', () => {
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    scenario.season.days = 1
+    scenario.season.centerUnlockDay = 1
+    scenario.season.nodeCounts = { normal: 2, core: 0, center: 0 }
+    scenario.guilds = [
+      {
+        ...structuredClone(scenario.guilds[0]),
+        roster: { normal: 0, small: 0, whale: 1 },
+        deployFans: { normal: 2000, core: 2000, center: 2000 },
+      },
+      {
+        ...structuredClone(scenario.guilds[1]),
+        roster: { normal: 3, small: 0, whale: 0 },
+        deployFans: { normal: 2000, core: 2000, center: 2000 },
+      },
+    ]
+
+    const result = runSeason(scenario, createSeededRng(1), 'deterministic')
+    const laterActions = result.events.filter((event) => (
+      event.playerId === 'A-whale-1' && event.minute > 235
+    ))
+
+    expect(laterActions[0]?.minute).toBe(466)
+    expect(result.guilds.A.totalScore).toBeGreaterThan(25)
   })
 
   it('does not award battle score for neutral deployment or defender success', () => {

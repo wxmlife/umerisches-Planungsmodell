@@ -43,4 +43,39 @@ describe('simulatorReducer', () => {
     expect(edited.monteCarlo).toBe(SAMPLE_MONTE_CARLO_RESULT)
     expect(edited.stale).toBe(true)
   })
+
+  it('invalidates an active sensitivity run when its target changes', () => {
+    const running = simulatorReducer(
+      createSimulatorState(DEFAULT_SCENARIO),
+      { type: 'run-start', runId: 'old-sensitivity' },
+    )
+    const edited = simulatorReducer(running, {
+      type: 'set-analysis-choice',
+      path: 'targetGuildId',
+      value: 'B',
+    })
+
+    expect(edited.activeRunId).toBeNull()
+    expect(edited.runStatus).toBe('idle')
+
+    const afterLateResult = simulatorReducer(edited, {
+      type: 'sensitivity-result',
+      runId: 'old-sensitivity',
+      result: {
+        request: {
+          parameter: 'battle.alpha',
+          metric: 'finalScoreGap',
+          min: 1,
+          max: 1,
+          step: 1,
+          targetGuildId: 'A',
+          runs: 1,
+          seed: 1,
+        },
+        points: [],
+        cancelled: false,
+      },
+    })
+    expect(afterLateResult.sensitivity).toBeNull()
+  })
 })

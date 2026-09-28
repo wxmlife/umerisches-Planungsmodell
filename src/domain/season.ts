@@ -49,6 +49,7 @@ export interface GuildSeasonResult {
   personalDefenseContribution: number
   maxSimultaneousGarrisons: number
   maxGarrisonsPerPlayer: number
+  actionCapacityBlocks: { formation: number; cooldown: number }
   returnedOverflowFans: number
   supplyBySource: Record<
     string,
@@ -75,6 +76,7 @@ export interface SeasonResult {
   spendEvents: SpendEvent[]
   eventCount: number
   termination: 'season-end' | 'event-limit'
+  terminationMinute: number | null
   invariants: {
     singleOwnerPerNode: boolean
     nonnegativeFans: boolean
@@ -239,6 +241,7 @@ function createGuildResults(scenario: Scenario): Record<string, MutableGuildResu
     personalDefenseContribution: 0,
     maxSimultaneousGarrisons: 0,
     maxGarrisonsPerPlayer: 0,
+    actionCapacityBlocks: { formation: 0, cooldown: 0 },
     returnedOverflowFans: 0,
     supplyBySource: {},
     heldMultiplier: 0,
@@ -273,6 +276,7 @@ export function runSeason(
   let lastHoldingMinute = 0
   let eventCount = 0
   let termination: SeasonResult['termination'] = 'season-end'
+  let terminationMinute: number | null = null
 
   const advancePlayer = (player: PlayerState, minute: number) => {
     if (minute < player.economyMinute) throw new Error('Player economy moved backward')
@@ -323,18 +327,30 @@ export function runSeason(
     && (guildById.get(guildId)?.priorities[node.kind] ?? 0) > 0
   ))
 
-  const scheduleAction = (player: PlayerState, requestedMinute: number) => {
-    if (requestedMinute > endMinute || !hasFreeFormation(player)) return
+  const scheduleAction = (
+    player: PlayerState,
+    requestedMinute: number,
+    recoveryChanged = false,
+  ) => {
+    if (requestedMinute > endMinute) return
+    const resourceReady = player.economy.availableFans >= scenario.fans.minDeploy
+      && hasOpenTarget(player.guildId)
+    if (!hasFreeFormation(player)) {
+      if (resourceReady) guilds[player.guildId].actionCapacityBlocks.formation += 1
+      return
+    }
     const minute = Math.max(requestedMinute, player.nextActionMinute)
+    if (minute > requestedMinute && resourceReady) {
+      guilds[player.guildId].actionCapacityBlocks.cooldown += 1
+    }
     if (minute > endMinute) return
     const existing = scheduledActionMinute.get(player.id)
     if (existing !== undefined && existing <= minute) return
     if (
       existing !== undefined
       && player.economy.availableFans < scenario.fans.minDeploy
-    ) {
-      return
-    }
+      && !recoveryChanged
+    ) return
     scheduledActionMinute.set(player.id, minute)
     queue.push({ minute, priority: ACTION_PRIORITY, kind: 'action', playerId: player.id })
   }
@@ -625,7 +641,7 @@ export function runSeason(
           * scenario.score.nodeMultipliers[node.kind]
         creditDefense(defender, node.kind, false)
         recordOwnershipMetrics(player.guildId, player)
-        scheduleAction(defender, minute)
+        scheduleAction(defender, minute, true)
       } else {
         defendingGarrison.currentFans = outcome.defenderFansAfter
         returnFans(player, outcome.attackerFansAfter, player.guildId)
@@ -710,6 +726,7 @@ export function runSeason(
     processedByDay.set(day, processed)
     if (processed > scenario.simulation.maxEventsPerDay) {
       termination = 'event-limit'
+      terminationMinute = event.minute
       break
     }
 
@@ -782,6 +799,7 @@ export function runSeason(
       personalDefenseContribution: guild.personalDefenseContribution,
       maxSimultaneousGarrisons: guild.maxSimultaneousGarrisons,
       maxGarrisonsPerPlayer: guild.maxGarrisonsPerPlayer,
+      actionCapacityBlocks: guild.actionCapacityBlocks,
       returnedOverflowFans: guild.returnedOverflowFans,
       supplyBySource: guild.supplyBySource,
     },
@@ -811,6 +829,7 @@ export function runSeason(
     spendEvents,
     eventCount,
     termination,
+    terminationMinute,
     invariants: { singleOwnerPerNode, nonnegativeFans, holdingScoreReconciled },
   }
 }

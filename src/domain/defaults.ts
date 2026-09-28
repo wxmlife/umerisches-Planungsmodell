@@ -149,6 +149,7 @@ export const DEFAULT_SCENARIO: Scenario = {
     randomMin: 0.9,
     randomMax: 1.1,
     styleAdvantage: 0.03,
+    calibrationStyle: 'neutral',
     homeLossFactor: 0.8,
     lossBands: [
       { minRatio: 1.3, rate: 0.1 },

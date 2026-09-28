@@ -1,7 +1,9 @@
 export interface RunToolbarProps {
   valid: boolean
+  sensitivityValid?: boolean
   status: 'idle' | 'running' | 'cancelling' | 'error'
   progress: { completed: number; total: number } | null
+  errorMessage?: string | null
   onRunMonteCarlo: () => void
   onRunSensitivity: () => void
   onCancel: () => void
@@ -9,8 +11,10 @@ export interface RunToolbarProps {
 
 export function RunToolbar({
   valid,
+  sensitivityValid = valid,
   status,
   progress,
+  errorMessage,
   onRunMonteCarlo,
   onRunSensitivity,
   onCancel,
@@ -21,7 +25,7 @@ export function RunToolbar({
       <button type="button" disabled={!valid || busy} onClick={onRunMonteCarlo}>
         运行蒙特卡洛
       </button>
-      <button type="button" disabled={!valid || busy} onClick={onRunSensitivity}>
+      <button type="button" disabled={!valid || !sensitivityValid || busy} onClick={onRunSensitivity}>
         运行敏感性分析
       </button>
       {busy ? (
@@ -32,7 +36,7 @@ export function RunToolbar({
       {progress ? (
         <span role="status">已完成 {progress.completed} / {progress.total}</span>
       ) : null}
-      {status === 'error' ? <span role="alert">运行失败</span> : null}
+      {status === 'error' ? <span role="alert">运行失败：{errorMessage ?? '未知错误'}</span> : null}
     </section>
   )
 }

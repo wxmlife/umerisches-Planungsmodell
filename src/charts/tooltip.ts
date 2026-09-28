@@ -31,11 +31,48 @@ interface TooltipParameter {
 
 export function seasonChartTooltip(parameters: unknown): string {
   const list = Array.isArray(parameters) ? parameters : [parameters]
-  const parameter = list.find((item): item is TooltipParameter => Boolean(
+  const snapshots = list.filter((item): item is TooltipParameter => Boolean(
     item && typeof item === 'object' && 'data' in item,
-  ))
-  const snapshot = parameter?.data?.meta?.snapshot
-  return snapshot
-    ? formatSeasonSnapshotTooltip(snapshot, parameter?.data?.meta?.previous)
-    : ''
+  )).map((parameter) => parameter.data?.meta).filter(
+    (meta): meta is { snapshot: SeasonSnapshot; previous?: SeasonSnapshot } => (
+      Boolean(meta?.snapshot)
+    ),
+  )
+  return snapshots.map(({ snapshot, previous }) => [
+    `<strong>公会 ${snapshot.guildId}</strong>`,
+    formatSeasonSnapshotTooltip(snapshot, previous),
+  ].join('<br/>')).join('<br/><br/>')
+}
+
+interface MonteCarloTooltipParameter {
+  data?: {
+    meta?: {
+      guildId?: string
+      quantiles?: {
+        minute: number
+        p10: number
+        median: number
+        p90: number
+      }
+    }
+  }
+}
+
+export function monteCarloScoreTooltip(parameters: unknown): string {
+  const list = Array.isArray(parameters) ? parameters : [parameters]
+  const rows = list.map((item) => (
+    item && typeof item === 'object' && 'data' in item
+      ? (item as MonteCarloTooltipParameter).data?.meta
+      : undefined
+  )).filter((meta): meta is {
+    guildId: string
+    quantiles: { minute: number; p10: number; median: number; p90: number }
+  } => Boolean(meta?.guildId && meta.quantiles))
+  if (rows.length === 0) return ''
+  return [
+    `<strong>${rows[0].quantiles.minute.toLocaleString('zh-CN')} 分钟</strong>`,
+    ...rows.map(({ guildId, quantiles }) => (
+      `${guildId} · P10：${number(quantiles.p10)} · 中位数：${number(quantiles.median)} · P90：${number(quantiles.p90)}`
+    )),
+  ].join('<br/>')
 }

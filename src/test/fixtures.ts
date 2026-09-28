@@ -27,6 +27,7 @@ export const SAMPLE_MONTE_CARLO_RESULT: MonteCarloResult = {
       lostFanSeries: [zeroPoint],
       finalScore: scorePoint,
       rankProbabilities: { 1: 1 },
+      actionCapacityBlocks: { formation: zero, cooldown: zero },
       spend: { usd: zero, diamonds: zero, ads: zero },
       supplyBySource: {},
     },

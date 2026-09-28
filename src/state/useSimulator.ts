@@ -3,6 +3,7 @@ import { DEFAULT_SCENARIO } from '../domain/defaults'
 import { createSeededRng } from '../domain/rng'
 import { runSeason } from '../domain/season'
 import type { WorkerRequest, WorkerResponse } from '../worker/protocol'
+import { eventLimitMessage } from '../worker/runner'
 import {
   createSimulatorState,
   simulatorReducer,
@@ -56,7 +57,7 @@ export function useSimulator() {
         dispatch({ type: 'run-cancelled', runId: message.runId })
       } else {
         activeRunIdRef.current = null
-        dispatch({ type: 'run-error', runId: message.runId })
+        dispatch({ type: 'run-error', runId: message.runId, message: message.message })
       }
     })
     return () => {
@@ -69,15 +70,38 @@ export function useSimulator() {
     if (!state.validation.valid) return undefined
     const scenario = state.lastValidScenario
     const timeout = window.setTimeout(() => {
-      const result = runSeason(
-        scenario,
-        createSeededRng(scenario.simulation.seed),
-        'deterministic',
-      )
-      dispatch({ type: 'deterministic-result', scenario, result })
+      try {
+        const result = runSeason(
+          scenario,
+          createSeededRng(scenario.simulation.seed),
+          'deterministic',
+        )
+        if (result.termination === 'event-limit') {
+          dispatch({
+            type: 'deterministic-error',
+            scenario,
+            message: eventLimitMessage(scenario, result),
+          })
+        } else {
+          dispatch({ type: 'deterministic-result', scenario, result })
+        }
+      } catch (error) {
+        dispatch({
+          type: 'deterministic-error',
+          scenario,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
     }, 120)
     return () => window.clearTimeout(timeout)
   }, [state.lastValidScenario, state.validation.valid])
+
+  const invalidateActiveRun = useCallback(() => {
+    const runId = activeRunIdRef.current
+    if (!runId) return
+    workerRef.current?.postMessage({ type: 'cancel', runId } satisfies WorkerRequest)
+    activeRunIdRef.current = null
+  }, [])
 
   const startWorkerRun = useCallback((request: StartWorkerRequest) => {
     if (!state.validation.valid || !workerRef.current) return
@@ -107,6 +131,7 @@ export function useSimulator() {
   }, [startWorkerRun, state.lastValidScenario])
 
   const runSensitivityAnalysis = useCallback(() => {
+    if (!state.analysisValidation.valid) return
     startWorkerRun({
       type: 'sensitivity',
       scenario: state.lastValidScenario,
@@ -122,7 +147,7 @@ export function useSimulator() {
         seed: state.lastValidScenario.simulation.seed,
       },
     })
-  }, [startWorkerRun, state.analysis, state.lastValidScenario])
+  }, [startWorkerRun, state.analysis, state.analysisValidation.valid, state.lastValidScenario])
 
   const cancel = useCallback(() => {
     const runId = activeRunIdRef.current
@@ -133,27 +158,30 @@ export function useSimulator() {
 
   return {
     state,
-    setNumber: (path: string, value: number) => dispatch({ type: 'set-number', path, value }),
-    setNullableNumber: (path: string, value: number | null) => dispatch({
-      type: 'set-nullable-number',
-      path,
-      value,
-    }),
-    setBoolean: (path: string, value: boolean) => dispatch({
-      type: 'set-boolean',
-      path,
-      value,
-    }),
-    setAnalysisNumber: (path: string, value: number) => dispatch({
-      type: 'set-analysis-number',
-      path,
-      value,
-    }),
-    setAnalysisChoice: (path: SimulatorAnalysisChoice, value: string) => dispatch({
-      type: 'set-analysis-choice',
-      path,
-      value,
-    }),
+    setNumber: (path: string, value: number) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-number', path, value })
+    },
+    setNullableNumber: (path: string, value: number | null) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-nullable-number', path, value })
+    },
+    setBoolean: (path: string, value: boolean) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-boolean', path, value })
+    },
+    setString: (path: string, value: string) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-string', path, value })
+    },
+    setAnalysisNumber: (path: string, value: number) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-analysis-number', path, value })
+    },
+    setAnalysisChoice: (path: SimulatorAnalysisChoice, value: string) => {
+      invalidateActiveRun()
+      dispatch({ type: 'set-analysis-choice', path, value })
+    },
     runMonteCarlo,
     runSensitivity: runSensitivityAnalysis,
     cancel,

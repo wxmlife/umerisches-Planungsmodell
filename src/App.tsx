@@ -11,6 +11,7 @@ import { SupplyEfficiencyPanel } from './components/SupplyEfficiencyPanel'
 import type { SensitivityMetric, SensitivityParameter } from './domain/sensitivity'
 import type { Scenario } from './domain/types'
 import { useSimulator } from './state/useSimulator'
+import { resultStatusMessage } from './state/resultStatus'
 
 function wholeFans(value: number): string {
   return Math.round(value).toLocaleString('zh-CN')
@@ -48,16 +49,23 @@ function App() {
   const displayScenario = state.validation.valid
     ? state.draft
     : state.lastValidScenario
+  const statusMessage = resultStatusMessage({
+    valid: state.validation.valid,
+    stale: state.stale,
+    runStatus: state.runStatus,
+  })
 
   return (
     <div className="app-shell">
       <ParameterSidebar
         scenario={state.draft}
         validation={state.validation}
+        analysisValidation={state.analysisValidation}
         analysis={state.analysis}
         onSetNumber={simulator.setNumber}
         onSetNullableNumber={simulator.setNullableNumber}
         onSetBoolean={simulator.setBoolean}
+        onSetString={simulator.setString}
         onSetAnalysisNumber={simulator.setAnalysisNumber}
         onSetAnalysisChoice={simulator.setAnalysisChoice}
       />
@@ -71,18 +79,16 @@ function App() {
         </header>
         <RunToolbar
           valid={state.validation.valid}
+          sensitivityValid={state.analysisValidation.valid}
           status={state.runStatus}
           progress={state.progress}
+          errorMessage={state.errorMessage}
           onRunMonteCarlo={simulator.runMonteCarlo}
           onRunSensitivity={simulator.runSensitivity}
           onCancel={simulator.cancel}
         />
         <RecoverySummary scenario={displayScenario} />
-        {!state.validation.valid ? (
-          <p className="stale-notice" role="status">输入无效：结果区保留并淡化上一次有效推演。</p>
-        ) : state.stale ? (
-          <p className="stale-notice" role="status">参数已更新，正在刷新基准推演…</p>
-        ) : null}
+        {statusMessage ? <p className="stale-notice" role="status">{statusMessage}</p> : null}
         <div
           className="dashboard-grid"
           data-testid="result-grid"

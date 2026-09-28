@@ -22,6 +22,7 @@ export interface GuildMonteCarloResult {
   lostFanSeries: QuantilePoint[]
   finalScore: Quantiles
   rankProbabilities: Record<number, number>
+  actionCapacityBlocks: { formation: Quantiles; cooldown: Quantiles }
   spend: { usd: Quantiles; diamonds: Quantiles; ads: Quantiles }
   supplyBySource: Record<
     string,
@@ -157,6 +158,14 @@ export function aggregateTrials(results: SeasonResult[]): MonteCarloResult {
       lostFanSeries: buildSeries(maps, minutes, (snapshot) => snapshot.lostFans),
       finalScore: quantiles(results.map((result) => result.guilds[guildId]?.totalScore ?? 0)),
       rankProbabilities: rankProbabilities[guildId],
+      actionCapacityBlocks: {
+        formation: quantiles(results.map((result) => (
+          result.guilds[guildId]?.actionCapacityBlocks.formation ?? 0
+        ))),
+        cooldown: quantiles(results.map((result) => (
+          result.guilds[guildId]?.actionCapacityBlocks.cooldown ?? 0
+        ))),
+      },
       spend: {
         usd: quantiles(finalSnapshots.map((snapshot) => snapshot.cumulativeUsd)),
         diamonds: quantiles(finalSnapshots.map((snapshot) => snapshot.cumulativeDiamonds)),

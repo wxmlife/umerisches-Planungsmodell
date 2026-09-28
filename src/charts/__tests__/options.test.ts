@@ -4,6 +4,7 @@ import {
   buildBattleOption,
   buildCumulativeSpendOption,
   buildScoreOption,
+  buildSupplyEfficiencyOption,
 } from '../options'
 
 describe('chart option builders', () => {
@@ -14,6 +15,63 @@ describe('chart option builders', () => {
     expect(names).toContain('A P10–P90')
     expect(option.series.find((series) => series.name === 'A P10–P90')?.data)
       .toEqual([[0, 20]])
+  })
+
+  it('formats Monte Carlo tooltips as P10, median, and P90 bounds', () => {
+    const option = buildScoreOption(SAMPLE_MONTE_CARLO_RESULT)
+    const formatter = (option.tooltip as {
+      formatter: (parameters: unknown) => string
+    }).formatter
+    const html = formatter([{
+      seriesName: 'A 中位数',
+      data: {
+        value: [0, 20],
+        meta: {
+          guildId: 'A',
+          quantiles: { minute: 0, p10: 10, median: 20, p90: 30, mean: 20 },
+        },
+      },
+    }])
+
+    expect(html).toContain('A')
+    expect(html).toContain('P10：10')
+    expect(html).toContain('中位数：20')
+    expect(html).toContain('P90：30')
+    expect(html).not.toContain('P10–P90：20')
+  })
+
+  it('uses domain-provided incremental score efficiency directly', () => {
+    const option = buildSupplyEfficiencyOption(undefined, {
+      request: {
+        parameter: 'supply.dailyUsdBudget',
+        metric: 'firstPlaceProbability',
+        min: 5,
+        max: 5,
+        step: 1,
+        targetGuildId: 'A',
+        targetTier: 'whale',
+        runs: 1,
+        seed: 1,
+      },
+      points: [{
+        x: 5,
+        metricValue: 0.5,
+        incrementalScorePerUsd: 7.25,
+        finalScore: 20,
+        firstPlaceProbability: 0.5,
+        nodeCounts: { normal: 1, core: 0, center: 0 },
+        usd: 5,
+        diamonds: 0,
+        ads: 0,
+        acceptedFans: 100,
+        wastedFans: 0,
+        actionCapacityBound: false,
+      }],
+      cancelled: false,
+    })
+
+    expect(option.series.find((series) => series.name === '每美元新增积分')?.data)
+      .toEqual([[5, 7.25]])
   })
 
   it('formats cumulative tooltip currencies without floating point noise', () => {

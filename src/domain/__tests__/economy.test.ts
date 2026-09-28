@@ -66,6 +66,42 @@ describe('fan recovery economy', () => {
     expect(state.wastedBySource['ad-or-diamond-ad']).toBeGreaterThanOrEqual(333)
   })
 
+  it('keeps mixed-source attribution identical for one jump and minute steps', () => {
+    const createActive = () => activateOffer(
+      createEconomyState(1900, 2000),
+      'ad-or-diamond-ad',
+      0,
+      DEFAULT_SCENARIO.supply,
+      actor,
+    )
+    const oneJump = advanceEconomy(
+      createActive(), 0, 30, DEFAULT_SCENARIO.fans, DEFAULT_SCENARIO.supply,
+    )
+    let minuteSteps = createActive()
+    for (let minute = 0; minute < 30; minute += 1) {
+      minuteSteps = advanceEconomy(
+        minuteSteps,
+        minute,
+        minute + 1,
+        DEFAULT_SCENARIO.fans,
+        DEFAULT_SCENARIO.supply,
+      )
+    }
+
+    expect(oneJump.availableFans).toBe(minuteSteps.availableFans)
+    expect(oneJump.recoveredBySource).toEqual(minuteSteps.recoveredBySource)
+    for (const source of ['natural', 'ad-or-diamond-ad']) {
+      expect(oneJump.wastedBySource[source]).toBeCloseTo(
+        minuteSteps.wastedBySource[source],
+        9,
+      )
+      expect(oneJump.fractionalFansBySource[source]).toBeCloseTo(
+        minuteSteps.fractionalFansBySource[source],
+        9,
+      )
+    }
+  })
+
   it('produces the same queued pulse result in one jump or boundary-sized jumps', () => {
     const fans = { ...DEFAULT_SCENARIO.fans, naturalCapacityPerDay: 0 }
     const createQueued = () => {

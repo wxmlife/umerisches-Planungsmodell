@@ -96,6 +96,14 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   )
   pushIf(
     issues,
+    !['neutral', 'attacker-advantage', 'attacker-disadvantage'].includes(
+      battle.calibrationStyle,
+    ),
+    'battle.calibrationStyle',
+    '校准风格关系无效',
+  )
+  pushIf(
+    issues,
     !isNonnegative(battle.homeLossFactor),
     'battle.homeLossFactor',
     '主场损耗系数不能为负数',
@@ -143,14 +151,21 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     pushIf(issues, offer.id.trim().length === 0, `${basePath}.id`, '补给 ID 不能为空')
     pushIf(issues, offerIds.has(offer.id), `${basePath}.id`, '补给 ID 不能重复')
     offerIds.add(offer.id)
-    const numericRates = [
-      offer.usdCost,
-      offer.diamondCost,
-      offer.adCost,
-      offer.immediateCapacityRate,
-      offer.continuousCapacityRate,
-    ]
-    pushIf(issues, numericRates.some((value) => !isNonnegative(value)), basePath, '价格和恢复比例不能为负数')
+    const numericFields = [
+      ['usdCost', offer.usdCost],
+      ['diamondCost', offer.diamondCost],
+      ['adCost', offer.adCost],
+      ['immediateCapacityRate', offer.immediateCapacityRate],
+      ['continuousCapacityRate', offer.continuousCapacityRate],
+    ] as const
+    for (const [field, value] of numericFields) {
+      pushIf(
+        issues,
+        !isNonnegative(value),
+        `${basePath}.${field}`,
+        '价格和恢复比例不能为负数',
+      )
+    }
     pushIf(
       issues,
       !Number.isInteger(offer.durationMinutes) || offer.durationMinutes < 0,
@@ -173,7 +188,9 @@ export function validateScenario(scenario: Scenario): ValidationResult {
       pushIf(
         issues,
         !Number.isInteger(pulse.afterMinutes) || pulse.afterMinutes < 0 || !isNonnegative(pulse.rate),
-        `${basePath}.pulseCapacityRates.${pulseIndex}`,
+        !Number.isInteger(pulse.afterMinutes) || pulse.afterMinutes < 0
+          ? `${basePath}.pulseCapacityRates.${pulseIndex}.afterMinutes`
+          : `${basePath}.pulseCapacityRates.${pulseIndex}.rate`,
         '脉冲时间必须是非负整数且恢复比例不能为负数',
       )
     })
@@ -212,6 +229,12 @@ export function validateScenario(scenario: Scenario): ValidationResult {
         '补给优先级引用了不存在的补给',
       )
     })
+    pushIf(
+      issues,
+      new Set(policy.supplyPriority).size !== policy.supplyPriority.length,
+      `supply.purchasePolicies.${tier}.supplyPriority`,
+      '补给优先级不能重复',
+    )
   }
 
   pushIf(issues, !isPositiveInteger(season.days), 'season.days', '战斗日必须是正整数')

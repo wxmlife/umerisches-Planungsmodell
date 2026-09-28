@@ -19,6 +19,15 @@ export interface TrialHooks {
   onProgress?: (progress: TrialProgress) => void
 }
 
+export function eventLimitMessage(
+  scenario: Scenario,
+  result: SeasonResult,
+): string {
+  const minute = result.terminationMinute ?? 0
+  const day = Math.min(scenario.season.days, Math.floor(minute / 1440) + 1)
+  return `第 ${day} 日 ${minute} 分钟触发单日最大事件数 ${scenario.simulation.maxEventsPerDay}`
+}
+
 function mixSeed(seed: number, trialIndex: number): number {
   let mixed = (seed ^ Math.imul(trialIndex + 1, 0x9e3779b1)) >>> 0
   mixed ^= mixed >>> 16
@@ -44,11 +53,15 @@ export async function runTrials(
       cancelled = true
       break
     }
-    results.push(runSeason(
+    const season = runSeason(
       request.scenario,
       createSeededRng(mixSeed(request.seed, index)),
       'stochastic',
-    ))
+    )
+    if (season.termination === 'event-limit') {
+      throw new Error(eventLimitMessage(request.scenario, season))
+    }
+    results.push(season)
     hooks.onProgress?.({ completed: index + 1, total: request.runs })
     if ((index + 1) % 10 === 0) await yieldToEventLoop()
   }

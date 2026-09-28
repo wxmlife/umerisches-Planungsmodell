@@ -28,9 +28,9 @@ describe('sensitivity analysis', () => {
 
   it('derives spend and node thresholds only from observed grid points', () => {
     const points: SensitivityPoint[] = [
-      { x: 0, metricValue: 0.42, finalScore: 10, firstPlaceProbability: 0.42, nodeCounts: { normal: 18, core: 2, center: 1 }, usd: 0, diamonds: 0, ads: 0, acceptedFans: 0, wastedFans: 0 },
-      { x: 5, metricValue: 0.51, finalScore: 20, firstPlaceProbability: 0.51, nodeCounts: { normal: 19, core: 3, center: 1 }, usd: 5, diamonds: 0, ads: 0, acceptedFans: 1000, wastedFans: 0 },
-      { x: 10, metricValue: 0.83, finalScore: 30, firstPlaceProbability: 0.83, nodeCounts: { normal: 20, core: 3, center: 1 }, usd: 10, diamonds: 0, ads: 0, acceptedFans: 2000, wastedFans: 0 },
+      { x: 0, metricValue: 0.42, incrementalScorePerUsd: 0, finalScore: 10, firstPlaceProbability: 0.42, nodeCounts: { normal: 18, core: 2, center: 1 }, usd: 0, diamonds: 0, ads: 0, acceptedFans: 0, wastedFans: 0, actionCapacityBound: false },
+      { x: 5, metricValue: 0.51, incrementalScorePerUsd: 2, finalScore: 20, firstPlaceProbability: 0.51, nodeCounts: { normal: 19, core: 3, center: 1 }, usd: 5, diamonds: 0, ads: 0, acceptedFans: 1000, wastedFans: 0, actionCapacityBound: false },
+      { x: 10, metricValue: 0.83, incrementalScorePerUsd: 2, finalScore: 30, firstPlaceProbability: 0.83, nodeCounts: { normal: 20, core: 3, center: 1 }, usd: 10, diamonds: 0, ads: 0, acceptedFans: 2000, wastedFans: 0, actionCapacityBound: false },
     ]
     expect(deriveSpendThresholds(points)).toEqual({ dailyBudget50: 5, dailyBudget80: 10 })
     expect(deriveSpendThresholds(points.slice(0, 2)).dailyBudget80).toBeNull()
@@ -62,5 +62,59 @@ describe('sensitivity analysis', () => {
       (paid.finalScore - baseline.finalScore) / paid.usd,
       10,
     )
+  })
+
+  it('uses a hidden zero-budget control when the visible scan starts above zero', async () => {
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    scenario.season.days = 1
+    scenario.season.centerUnlockDay = 1
+    scenario.season.nodeCounts = { normal: 4, core: 1, center: 0 }
+    const request = {
+      parameter: 'supply.dailyUsdBudget' as const,
+      metric: 'incrementalScorePerUsd' as const,
+      min: 5,
+      max: 5,
+      step: 1,
+      targetGuildId: 'A',
+      targetTier: 'whale' as const,
+      runs: 2,
+      seed: 31,
+    }
+    const paid = await runSensitivity(scenario, request)
+    const free = await runSensitivity(scenario, { ...request, min: 0, max: 0 })
+    const paidPoint = paid.points[0]
+    const freePoint = free.points[0]
+
+    expect(paidPoint.incrementalScorePerUsd).toBeCloseTo(
+      (paidPoint.finalScore - freePoint.finalScore) / (paidPoint.usd - freePoint.usd),
+      10,
+    )
+    expect(paidPoint.metricValue).toBe(paidPoint.incrementalScorePerUsd)
+  })
+
+  it('rejects scan values that create an invalid scenario', async () => {
+    await expect(runSensitivity(DEFAULT_SCENARIO, {
+      parameter: 'battle.alpha',
+      metric: 'finalScoreGap',
+      min: -1,
+      max: -1,
+      step: 1,
+      targetGuildId: 'A',
+      runs: 1,
+      seed: 1,
+    })).rejects.toThrow(/alpha|初始粉丝指数/)
+  })
+
+  it('rejects non-finite or impractically large scan grids', async () => {
+    await expect(runSensitivity(DEFAULT_SCENARIO, {
+      parameter: 'battle.alpha',
+      metric: 'finalScoreGap',
+      min: 0,
+      max: Number.POSITIVE_INFINITY,
+      step: 0.01,
+      targetGuildId: 'A',
+      runs: 1,
+      seed: 1,
+    })).rejects.toThrow(/有限|finite|扫描/)
   })
 })

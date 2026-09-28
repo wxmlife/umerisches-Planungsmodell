@@ -12,6 +12,7 @@ function resultWithScores(scores: Record<string, number>): SeasonResult {
       personalDefenseContribution: 0,
       maxSimultaneousGarrisons: 0,
       maxGarrisonsPerPlayer: 0,
+      actionCapacityBlocks: { formation: 0, cooldown: 0 },
       returnedOverflowFans: 0,
       supplyBySource: {},
     }])),
@@ -55,6 +56,7 @@ function resultWithScores(scores: Record<string, number>): SeasonResult {
     spendEvents: [],
     eventCount: 0,
     termination: 'season-end',
+    terminationMinute: null,
     invariants: {
       singleOwnerPerNode: true,
       nonnegativeFans: true,

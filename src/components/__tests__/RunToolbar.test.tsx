@@ -25,8 +25,10 @@ function SimulatorHarness() {
       />
       <RunToolbar
         valid={state.validation.valid}
+        sensitivityValid
         status={state.runStatus}
         progress={state.progress}
+        errorMessage={state.errorMessage}
         onRunMonteCarlo={vi.fn()}
         onRunSensitivity={vi.fn()}
         onCancel={vi.fn()}
@@ -54,6 +56,7 @@ describe('RunToolbar', () => {
     render(
       <RunToolbar
         valid
+        sensitivityValid
         status="running"
         progress={{ completed: 23, total: 100 }}
         onRunMonteCarlo={vi.fn()}
@@ -64,5 +67,21 @@ describe('RunToolbar', () => {
     expect(screen.getByText('已完成 23 / 100')).toBeVisible()
     await user.click(screen.getByRole('button', { name: '取消运行' }))
     expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('shows the explicit simulation failure reason', () => {
+    render(
+      <RunToolbar
+        valid
+        sensitivityValid
+        status="error"
+        progress={null}
+        errorMessage="第 1 日 60 分钟触发单日最大事件数 100"
+        onRunMonteCarlo={vi.fn()}
+        onRunSensitivity={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('第 1 日 60 分钟触发单日最大事件数 100')
   })
 })

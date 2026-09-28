@@ -16,20 +16,43 @@ function percent(value: number): string {
 export function BattleCalibrationPanel({
   scenario = DEFAULT_SCENARIO,
 }: BattleCalibrationPanelProps) {
+  const attackerStyleMultiplier = scenario.battle.calibrationStyle === 'attacker-advantage'
+    ? 1 + scenario.battle.styleAdvantage
+    : scenario.battle.calibrationStyle === 'attacker-disadvantage'
+      ? 1 - scenario.battle.styleAdvantage
+      : 1
+  const defenderStyleMultiplier = scenario.battle.calibrationStyle === 'attacker-advantage'
+    ? 1 - scenario.battle.styleAdvantage
+    : scenario.battle.calibrationStyle === 'attacker-disadvantage'
+      ? 1 + scenario.battle.styleAdvantage
+      : 1
+  const styleLabel = scenario.battle.calibrationStyle === 'attacker-advantage'
+    ? '进攻方风格优势'
+    : scenario.battle.calibrationStyle === 'attacker-disadvantage'
+      ? '进攻方风格劣势'
+      : '中性风格'
   const equalFans = useMemo(() => buildAttritionSeries(scenario.battle, {
-    attackerIdolPower: 1,
-    defenderIdolPower: 3,
+    attackerIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.small,
+    defenderIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.whale,
     attackerInitialFans: 1000,
     defenderInitialFans: 1000,
     battles: 6,
-  }), [scenario.battle])
+    attackerStyleMultiplier,
+    defenderStyleMultiplier,
+  }), [attackerStyleMultiplier, defenderStyleMultiplier, scenario.battle])
   const doubleFans = useMemo(() => buildAttritionSeries(scenario.battle, {
-    attackerIdolPower: 1,
-    defenderIdolPower: 3,
+    attackerIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.small,
+    defenderIdolPower: scenario.battle.baseIdolPower
+      * scenario.battle.tierMultipliers.whale,
     attackerInitialFans: 2000,
     defenderInitialFans: 1000,
     battles: 6,
-  }), [scenario.battle])
+    attackerStyleMultiplier,
+    defenderStyleMultiplier,
+  }), [attackerStyleMultiplier, defenderStyleMultiplier, scenario.battle])
   const option = useMemo(
     () => buildBattleOption(equalFans, doubleFans),
     [equalFans, doubleFans],
@@ -59,6 +82,9 @@ export function BattleCalibrationPanel({
       <header className="card-header">
         <div><p className="eyebrow">BATTLE CALIBRATION</p><h2 id="battle-calibration-title">连续挑战曲线</h2></div>
       </header>
+      <p className="calibration-context">
+        小 R ×{scenario.battle.tierMultipliers.small} vs 大 R ×{scenario.battle.tierMultipliers.whale} · {styleLabel}
+      </p>
       <EChart option={option} label="连续挑战的显示倾向、真实胜率与守方粉丝曲线" />
       <div className="table-pair">
         {table('1,000 vs 1,000', equalFans.slice(0, 3))}

@@ -178,20 +178,119 @@ function accrueContinuous(
 ) {
   if (!(elapsedMinutes > 0)) return
 
-  applyProducedFans(
-    state,
-    'natural',
-    state.capacity * fans.naturalCapacityPerDay * elapsedMinutes / 1440,
+  const sources: Array<{ id: string; ratePerMinute: number }> = [{
+    id: 'natural',
+    ratePerMinute: state.capacity * fans.naturalCapacityPerDay / 1440,
+  }]
+  if (state.activeProgram) {
+    const offer = findOffer(supply, state.activeProgram.offerId)
+    if (offer.durationMinutes > 0 && offer.continuousCapacityRate > 0) {
+      sources.push({
+        id: offer.id,
+        ratePerMinute: state.capacity
+          * offer.continuousCapacityRate
+          / offer.durationMinutes,
+      })
+    }
+  }
+  const activeSources = sources.filter((source) => source.ratePerMinute > 0)
+  if (activeSources.length === 0) return
+
+  const totals = activeSources.map((source) => {
+    const initialFraction = state.fractionalFansBySource[source.id] ?? 0
+    const produced = source.ratePerMinute * elapsedMinutes
+    addToRecord(state.theoreticalBySource, source.id, produced)
+    return {
+      ...source,
+      initialFraction,
+      total: initialFraction + produced,
+    }
+  })
+  const room = Math.max(0, state.capacity - state.availableFans)
+  const totalWholeFans = totals.reduce(
+    (sum, source) => sum + Math.floor(source.total + 1e-9),
+    0,
   )
 
-  if (!state.activeProgram) return
-  const offer = findOffer(supply, state.activeProgram.offerId)
-  if (offer.durationMinutes <= 0 || offer.continuousCapacityRate <= 0) return
-  applyProducedFans(
-    state,
-    offer.id,
-    state.capacity * offer.continuousCapacityRate * elapsedMinutes / offer.durationMinutes,
-  )
+  if (totalWholeFans < room) {
+    for (const source of totals) {
+      const wholeFans = Math.floor(source.total + 1e-9)
+      state.fractionalFansBySource[source.id] = source.total - wholeFans
+      state.availableFans += wholeFans
+      addToRecord(state.recoveredBySource, source.id, wholeFans)
+    }
+    return
+  }
+
+  const acceptedBySource = new Map(totals.map((source) => [source.id, 0]))
+  if (room > 0) {
+    const totalRate = totals.reduce((sum, source) => sum + source.ratePerMinute, 0)
+    const initialFractions = totals.reduce(
+      (sum, source) => sum + source.initialFraction,
+      0,
+    )
+    const estimatedFillMinute = Math.max(0, Math.min(
+      elapsedMinutes,
+      (room - initialFractions) / totalRate,
+    ))
+    let accepted = 0
+    for (const source of totals) {
+      const beforeBoundary = Math.max(0, Math.min(
+        Math.floor(source.total + 1e-9),
+        Math.floor(
+          source.initialFraction
+          + source.ratePerMinute * estimatedFillMinute
+          + 1e-12,
+        ),
+      ))
+      acceptedBySource.set(source.id, beforeBoundary)
+      accepted += beforeBoundary
+    }
+    while (accepted > room) {
+      const latestSource = totals.filter(
+        (source) => (acceptedBySource.get(source.id) ?? 0) > 0,
+      ).toSorted((a, b) => {
+        const aCount = acceptedBySource.get(a.id) ?? 0
+        const bCount = acceptedBySource.get(b.id) ?? 0
+        const aArrival = (aCount - a.initialFraction) / a.ratePerMinute
+        const bArrival = (bCount - b.initialFraction) / b.ratePerMinute
+        return bArrival - aArrival
+      })[0]
+      if (!latestSource) break
+      acceptedBySource.set(
+        latestSource.id,
+        (acceptedBySource.get(latestSource.id) ?? 0) - 1,
+      )
+      accepted -= 1
+    }
+    while (accepted < room) {
+      const nextArrival = Math.min(...totals.map((source) => {
+        const acceptedForSource = acceptedBySource.get(source.id) ?? 0
+        return (acceptedForSource + 1 - source.initialFraction) / source.ratePerMinute
+      }))
+      for (const source of totals) {
+        if (accepted >= room) break
+        const acceptedForSource = acceptedBySource.get(source.id) ?? 0
+        const sourceArrival = (
+          acceptedForSource + 1 - source.initialFraction
+        ) / source.ratePerMinute
+        if (Math.abs(sourceArrival - nextArrival) <= 1e-9) {
+          acceptedBySource.set(source.id, acceptedForSource + 1)
+          accepted += 1
+        }
+      }
+    }
+  }
+
+  state.availableFans += room
+  for (const source of totals) {
+    const accepted = acceptedBySource.get(source.id) ?? 0
+    const wasted = Math.max(0, source.total - accepted)
+    state.fractionalFansBySource[source.id] = 0
+    state.wastedFans += wasted
+    addToRecord(state.wastedBySource, source.id, wasted)
+    addToRecord(state.recoveredBySource, source.id, accepted)
+  }
 }
 
 function applyPulsesAt(

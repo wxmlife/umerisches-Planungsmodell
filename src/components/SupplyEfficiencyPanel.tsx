@@ -14,13 +14,11 @@ export function SupplyEfficiencyPanel({
   season,
   sensitivity,
   targetNodes,
-  actionCapacityBound = false,
 }: {
   guildId: string
   season: SeasonResult
   sensitivity: SensitivityResult | null
   targetNodes?: Record<NodeKind, number>
-  actionCapacityBound?: boolean
 }) {
   const guild = season.guilds[guildId]
   const isBudgetSweep = sensitivity?.request.parameter === 'supply.dailyUsdBudget'
@@ -36,6 +34,8 @@ export function SupplyEfficiencyPanel({
     ? deriveNodeTargetThreshold(budgetSensitivity.points, targetNodes)
     : null
   const unavailable = isBudgetSweep ? '未达到' : '需运行日预算扫描'
+  const highestBudgetPoint = budgetSensitivity?.points.toSorted((a, b) => a.x - b.x).at(-1)
+  const actionCapacityBound = highestBudgetPoint?.actionCapacityBound ?? false
 
   return (
     <section className="dashboard-card dashboard-card--wide" aria-labelledby="supply-efficiency-title">
