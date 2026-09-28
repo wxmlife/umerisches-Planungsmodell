@@ -4,6 +4,20 @@ import { validateScenario } from '../validation'
 import { createPurchaseScenario } from '../../test/fixtures'
 
 describe('scenario defaults and validation', () => {
+  it('validates reward thresholds, quantities, ids, cap, eligibility, and rank configuration', () => {
+    const scenario = structuredClone(DEFAULT_SCENARIO)
+    expect(scenario.rewards).toBeDefined()
+    scenario.rewards.dailyPointCap = 0
+    scenario.rewards.personalStages[1].points = scenario.rewards.personalStages[0].points
+    scenario.rewards.personalStages[0].rewards[0].quantity = -1
+    scenario.rewards.personalStages[2].rewards[0].resourceId = 94
+    scenario.rewards.guildMilestones[0].completionRate = 2
+    scenario.rewards.rankMinActiveDays = -1
+    scenario.rewards.rankRewards[0].merit = 1.5
+    const paths = validateScenario(scenario).issues.map(issue => issue.path)
+    expect(paths).toEqual(expect.arrayContaining(['rewards.dailyPointCap', 'rewards.personalStages.1.points', 'rewards.personalStages.0.rewards.0.quantity', 'rewards.personalStages.2.rewards.0.resourceId', 'rewards.guildMilestones.0.completionRate', 'rewards.rankMinActiveDays', 'rewards.rankRewards.0.merit']))
+  })
+
   it('gives every guild independent copies of the approved six-day tier templates', () => {
     const normal = ['ad-or-diamond-ad', 'ad-or-diamond-diamond', 'flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600']
     const paid = ['flyer', 'cheer-stick', 'instant-2000', 'instant-1000', 'instant-600', 'ad-or-diamond-ad', 'ad-or-diamond-diamond']

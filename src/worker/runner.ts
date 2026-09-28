@@ -2,6 +2,7 @@ import { aggregateTrials, type MonteCarloResult } from '../domain/aggregate'
 import { createBattleRuntime, type BattleRuntime } from '../domain/battle'
 import { createSeededRng } from '../domain/rng'
 import { runSeason, type SeasonResult } from '../domain/season'
+import { aggregateRewardModels, calculateRewardModel } from '../domain/rewards'
 import type { Scenario } from '../domain/types'
 
 export interface TrialRequest {
@@ -71,8 +72,12 @@ export async function runTrials(
 
   if (results.length < request.runs && hooks.isCancelled?.()) cancelled = true
   const aggregate = aggregateTrials(results)
+  const rewards = results.length > 0
+    ? aggregateRewardModels(results.map((season) => calculateRewardModel(request.scenario, season)))
+    : aggregateRewardModels([])
   return {
     ...aggregate,
+    rewards,
     runsRequested: request.runs,
     runsCompleted: results.length,
     cancelled,

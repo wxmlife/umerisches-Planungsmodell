@@ -1,5 +1,7 @@
 import type { NodeKind } from './types'
 import type { SeasonResult, SeasonSnapshot } from './season'
+import type { RewardDistribution } from './rewards'
+export { aggregateRewardModels } from './rewards'
 
 export interface Quantiles {
   p10: number
@@ -35,6 +37,7 @@ export interface MonteCarloResult {
   runsRequested: number
   runsCompleted: number
   cancelled: boolean
+  rewards?: RewardDistribution
 }
 
 function percentile(sorted: number[], probability: number): number {

@@ -5,6 +5,45 @@ export type Tier = 'normal' | 'small' | 'whale'
 export type NodeKind = 'normal' | 'core' | 'center'
 export type CurrencyKind = 'usd' | 'diamond' | 'ad'
 
+export type RewardResourceId = number
+
+export interface RewardItem {
+  resourceId: RewardResourceId
+  quantity: number
+  label?: string
+  extra?: Record<string, number | string | null>
+}
+
+export interface RewardPersonalStage {
+  points: number
+  rewards: RewardItem[]
+}
+
+export interface RewardGuildMilestone {
+  completionRate: number
+  minimumPersonalRate: number
+  rewards: RewardItem[]
+}
+
+export interface RewardRankConfig {
+  rank: number
+  merit: number
+  titleId: number | null
+  titleLabel: string
+}
+
+export interface RewardConfig {
+  targetPoints: number
+  dailyPointCap: number
+  rankMinActiveDays: number
+  rankMinProgressRate: number
+  personalStages: RewardPersonalStage[]
+  guildMilestones: RewardGuildMilestone[]
+  rankRewards: RewardRankConfig[]
+  legacyProgressThreshold: number
+  legacyFreeMode: 'replace' | 'stack'
+}
+
 export interface LossBand {
   minRatio: number
   rate: number
@@ -93,6 +132,7 @@ export interface Scenario {
     nodeCounts: Record<NodeKind, number>
   }
   guilds: GuildConfig[]
+  rewards: RewardConfig
   simulation: { runs: number; seed: number; maxEventsPerDay: number }
 }
 

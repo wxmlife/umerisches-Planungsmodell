@@ -7,6 +7,7 @@ import { createPurchaseScenario } from '../../test/fixtures'
 
 function resultWithScores(scores: Record<string, number>): SeasonResult {
   return {
+    seasonStartRoster: [],
     guilds: Object.fromEntries(Object.entries(scores).map(([guildId, score]) => [guildId, {
       totalScore: score,
       attackScore: score * 0.6,

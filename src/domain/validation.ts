@@ -8,6 +8,7 @@ import type {
 
 const TIERS: Tier[] = ['normal', 'small', 'whale']
 const NODE_KINDS: NodeKind[] = ['normal', 'core', 'center']
+const REWARD_RESOURCE_IDS = new Set([2, 3, 5, 10, 19, 62, 63, 64, 90, 91, 92, 93, 140, 601])
 
 function isNonnegative(value: number): boolean {
   return Number.isFinite(value) && value >= 0
@@ -29,6 +30,7 @@ function pushIf(
 export function validateScenario(scenario: Scenario): ValidationResult {
   const issues: ValidationIssue[] = []
   const { battle, fans, score, season, simulation, supply } = scenario
+  const rewards = scenario.rewards
 
   pushIf(issues, !isPositiveInteger(fans.capacity), 'fans.capacity', '粉丝池上限必须是正整数')
   pushIf(issues, !isPositiveInteger(fans.minDeploy), 'fans.minDeploy', '单次最低出战必须是正整数')
@@ -143,6 +145,46 @@ export function validateScenario(scenario: Scenario): ValidationResult {
       `score.nodeMultipliers.${kind}`,
       '节点倍率不能为负数',
     )
+  }
+
+  if (!rewards || typeof rewards !== 'object') {
+    issues.push({ path: 'rewards', message: '奖励配置缺失' })
+  } else {
+    pushIf(issues, !isPositiveInteger(rewards.targetPoints), 'rewards.targetPoints', '奖励目标积分必须是正整数')
+    pushIf(issues, !isPositiveInteger(rewards.dailyPointCap), 'rewards.dailyPointCap', '每日奖励积分上限必须是正整数')
+    pushIf(issues, rewards.dailyPointCap > rewards.targetPoints, 'rewards.dailyPointCap', '每日奖励积分上限不能超过目标积分')
+    pushIf(issues, !isPositiveInteger(rewards.rankMinActiveDays), 'rewards.rankMinActiveDays', '排名最低活跃天数必须是正整数')
+    pushIf(issues, !isNonnegative(rewards.rankMinProgressRate) || rewards.rankMinProgressRate > 1, 'rewards.rankMinProgressRate', '排名最低进度比例必须在 0 到 1 之间')
+    pushIf(issues, !['replace', 'stack'].includes(rewards.legacyFreeMode), 'rewards.legacyFreeMode', '旧免费奖励处理方式无效')
+    let lastPoints = 0
+    rewards.personalStages.forEach((stage, index) => {
+      pushIf(issues, !isPositiveInteger(stage.points) || stage.points <= lastPoints, `rewards.personalStages.${index}.points`, '个人奖励积分必须严格递增的正整数')
+      lastPoints = stage.points
+      stage.rewards.forEach((item, itemIndex) => {
+        pushIf(issues, !Number.isInteger(item.resourceId) || !REWARD_RESOURCE_IDS.has(item.resourceId), `rewards.personalStages.${index}.rewards.${itemIndex}.resourceId`, '奖励资源 ID 无效')
+        pushIf(issues, !isPositiveInteger(item.quantity), `rewards.personalStages.${index}.rewards.${itemIndex}.quantity`, '奖励数量必须是正整数')
+      })
+    })
+    let lastRate = 0
+    rewards.guildMilestones.forEach((milestone, index) => {
+      const rateValid = isNonnegative(milestone.completionRate) && milestone.completionRate > lastRate && milestone.completionRate <= 1
+      pushIf(issues, !rateValid, `rewards.guildMilestones.${index}.completionRate`, '公会里程碑完成率必须严格递增且不超过 1')
+      pushIf(issues, !isNonnegative(milestone.minimumPersonalRate) || milestone.minimumPersonalRate > milestone.completionRate, `rewards.guildMilestones.${index}.minimumPersonalRate`, '里程碑个人门槛无效')
+      if (rateValid) lastRate = milestone.completionRate
+      milestone.rewards.forEach((item, itemIndex) => {
+        pushIf(issues, !Number.isInteger(item.resourceId) || !REWARD_RESOURCE_IDS.has(item.resourceId), `rewards.guildMilestones.${index}.rewards.${itemIndex}.resourceId`, '奖励资源 ID 无效')
+        pushIf(issues, !isPositiveInteger(item.quantity), `rewards.guildMilestones.${index}.rewards.${itemIndex}.quantity`, '奖励数量必须是正整数')
+      })
+    })
+    const rankSet = new Set<number>()
+    rewards.rankRewards.forEach((rank, index) => {
+      pushIf(issues, !isPositiveInteger(rank.rank) || rankSet.has(rank.rank), `rewards.rankRewards.${index}.rank`, '排名必须是唯一正整数')
+      rankSet.add(rank.rank)
+      pushIf(issues, !Number.isInteger(rank.merit) || rank.merit < 0, `rewards.rankRewards.${index}.merit`, '排名战功必须是非负整数')
+      pushIf(issues, rank.titleId !== null && !isPositiveInteger(rank.titleId), `rewards.rankRewards.${index}.titleId`, '称号 ID 必须为空或正整数')
+      pushIf(issues, rank.titleLabel.trim().length === 0, `rewards.rankRewards.${index}.titleLabel`, '称号标签不能为空')
+    })
+    pushIf(issues, !isPositiveInteger(rewards.legacyProgressThreshold), 'rewards.legacyProgressThreshold', '旧进度审计值必须是正整数')
   }
 
   const offerIds = new Set<string>()

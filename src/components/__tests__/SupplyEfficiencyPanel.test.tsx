@@ -6,6 +6,7 @@ import { SupplyEfficiencyPanel } from '../SupplyEfficiencyPanel'
 import { SensitivityPanel } from '../SensitivityPanel'
 
 const season: SeasonResult = {
+  seasonStartRoster: [],
   guilds: {
     A: {
       totalScore: 100,

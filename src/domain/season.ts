@@ -24,6 +24,12 @@ import type {
 
 export type SeasonMode = 'deterministic' | 'stochastic'
 
+export interface SeasonRosterEntry {
+  playerId: string
+  guildId: string
+  tier: Tier
+}
+
 export interface SeasonSnapshot {
   minute: number
   day: number
@@ -59,6 +65,7 @@ export interface GuildSeasonResult {
 }
 
 export interface SeasonEvent {
+  id?: string
   minute: number
   day: number
   type: 'unlock' | 'deploy' | 'battle' | 'purchase'
@@ -68,9 +75,14 @@ export interface SeasonEvent {
   nodeKind?: NodeKind
   attackerWon?: boolean
   attackScoreDelta?: number
+  defenderPlayerId?: string
+  defenderGuildId?: string
+  defenseContribution?: number
 }
 
 export interface SeasonResult {
+  mode?: SeasonMode
+  seasonStartRoster: SeasonRosterEntry[]
   guilds: Record<string, GuildSeasonResult>
   snapshots: SeasonSnapshot[]
   events: SeasonEvent[]
@@ -518,6 +530,7 @@ export function runSeason(
       const spend = player.economy.spendLedger.at(-1)!
       spendEvents.push({ ...spend })
       events.push({
+        id: `purchase:${player.id}:${minute}:${spendEvents.length}`,
         minute,
         day: seasonDay(minute, scenario.season.days),
         type: 'purchase',
@@ -615,6 +628,7 @@ export function runSeason(
       player.garrisonNodeIds.add(node.id)
       recordOwnershipMetrics(player.guildId, player)
       events.push({
+        id: `deploy:${player.id}:${minute}:${node.id}`,
         minute,
         day: seasonDay(minute, scenario.season.days),
         type: 'deploy',
@@ -680,6 +694,7 @@ export function runSeason(
       guilds[player.guildId].totalScore = guilds[player.guildId].attackScore
         + guilds[player.guildId].holdingScore
       events.push({
+        id: `battle:${player.id}:${minute}:${node.id}:${eventCount}`,
         minute,
         day: seasonDay(minute, scenario.season.days),
         type: 'battle',
@@ -689,6 +704,11 @@ export function runSeason(
         nodeKind: node.kind,
         attackerWon: outcome.attackerWon,
         attackScoreDelta,
+        defenderPlayerId: defender.id,
+        defenderGuildId: defender.guildId,
+        defenseContribution: outcome.attackerWon
+          ? scenario.score.defenderPersonalLoss
+          : scenario.score.defenderPersonalWinBase * scenario.score.nodeMultipliers[node.kind],
       })
     }
 
@@ -848,6 +868,8 @@ export function runSeason(
   )
 
   return {
+    mode,
+    seasonStartRoster: players.map((player) => ({ playerId: player.id, guildId: player.guildId, tier: player.tier })),
     guilds: publicGuilds,
     snapshots,
     events,

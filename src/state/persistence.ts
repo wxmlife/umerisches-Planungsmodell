@@ -1,4 +1,4 @@
-import { DEFAULT_BATTLE_FORMULAS, DEFAULT_SCENARIO } from '../domain/defaults'
+import { DEFAULT_BATTLE_FORMULAS, DEFAULT_REWARD_CONFIG, DEFAULT_SCENARIO } from '../domain/defaults'
 import type { Scenario } from '../domain/types'
 import { createDefaultAnalysis, createSimulatorState, simulatorReducer, validateAnalysis, type SimulatorAnalysis, type SimulatorState } from './simulatorReducer'
 import { validateDraftScenario } from './scenarioLifecycle'
@@ -19,6 +19,14 @@ type Shape = 'number' | 'string' | 'boolean' | 'nullable-number' | { [key: strin
 const tierNumbers: Shape = { normal: 'number', small: 'number', whale: 'number' }
 const nodeNumbers: Shape = { normal: 'number', core: 'number', center: 'number' }
 const policy: Shape = { versionUsdBudget: 'number', versionDiamondBudget: 'number', versionAdBudget: 'number', useAds: 'boolean', supplyPriority: ['string'] }
+const rewardItem: Shape = { resourceId: 'number', quantity: 'number' }
+const rewardShape: Shape = {
+  targetPoints: 'number', dailyPointCap: 'number', rankMinActiveDays: 'number', rankMinProgressRate: 'number',
+  personalStages: [{ points: 'number', rewards: [rewardItem] }],
+  guildMilestones: [{ completionRate: 'number', minimumPersonalRate: 'number', rewards: [rewardItem] }],
+  rankRewards: [{ rank: 'number', merit: 'number', titleId: 'nullable-number', titleLabel: 'string' }],
+  legacyProgressThreshold: 'number', legacyFreeMode: 'string',
+}
 const scenarioShape: Shape = {
   battle: {
     formulas: { preRandomPower: 'string', displayedTendency: 'string', winProbability: 'string', fanLoss: 'string' },
@@ -33,6 +41,7 @@ const scenarioShape: Shape = {
   }] },
   season: { days: 'number', centerUnlockDay: 'number', nodeCounts: nodeNumbers },
   guilds: [{ id: 'string', name: 'string', roster: tierNumbers, purchasePolicies: { normal: policy, small: policy, whale: policy }, deployFans: nodeNumbers, priorities: nodeNumbers }],
+  rewards: rewardShape,
   simulation: { runs: 'number', seed: 'number', maxEventsPerDay: 'number' },
 }
 const analysisShape: Shape = {
@@ -62,6 +71,7 @@ function decode(value: unknown, shape: Shape): unknown {
 function migrateScenario(value: unknown): unknown {
   if (!record(value)) return value
   const scenario = structuredClone(value)
+  if (scenario.rewards === undefined) scenario.rewards = structuredClone(DEFAULT_REWARD_CONFIG)
   if (record(scenario.battle) && scenario.battle.formulas === undefined) scenario.battle.formulas = structuredClone(DEFAULT_BATTLE_FORMULAS)
   const supply = scenario.supply
   const season = scenario.season
@@ -89,8 +99,8 @@ function migrateScenario(value: unknown): unknown {
   return scenario
 }
 
-function decodeScenario(value: unknown, legacy: boolean): Scenario {
-  const scenario = decode(legacy ? migrateScenario(value) : value, scenarioShape) as Scenario
+function decodeScenario(value: unknown): Scenario {
+  const scenario = decode(migrateScenario(value), scenarioShape) as Scenario
   if (scenario.guilds.length === 0 || scenario.supply.offers.some(offer => !['program', 'instant'].includes(offer.mode))) throw new Error('Invalid scenario catalog')
   return scenario
 }
@@ -127,10 +137,10 @@ export function loadPersistedSimulatorState(storage: SimulatorStorage): LoadResu
       if (!legacy && (typeof data.savedAt !== 'string' || !Number.isFinite(Date.parse(data.savedAt)))) damaged = true
       const appliedInput = legacy ? data.appliedScenario ?? data.lastValidScenario ?? data.scenario ?? data.draft : data.appliedScenario
       const draftInput = legacy ? data.draftScenario ?? data.draft ?? data.scenario ?? appliedInput : data.draftScenario
-      try { state = createSimulatorState(decodeScenario(appliedInput, legacy)) } catch { damaged = true }
+      try { state = createSimulatorState(decodeScenario(appliedInput)) } catch { damaged = true }
       state ??= createSimulatorState(DEFAULT_SCENARIO)
       let draft = state.appliedScenario
-      try { draft = decodeScenario(draftInput, legacy) } catch { damaged = true }
+      try { draft = decodeScenario(draftInput) } catch { damaged = true }
       let analysis = createDefaultAnalysis(draft)
       try { analysis = decodeAnalysis(data.analysis, draft, legacy) } catch { damaged = true }
       const checked = validateDraftScenario(draft)

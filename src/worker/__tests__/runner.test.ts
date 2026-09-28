@@ -6,6 +6,17 @@ import { runTrials } from '../runner'
 import { createFormulaScenario, createPurchaseScenario } from '../../test/fixtures'
 import type { WorkerRequest, WorkerResponse } from '../protocol'
 
+it('transports reward Monte Carlo distributions separately from deterministic settlements', async () => {
+  const scenario = createFormulaScenario()
+  scenario.rewards.personalStages[0].points = 100
+  const request: WorkerRequest = { type: 'run', runId: 'reward-trials', scenario, runs: 3, seed: 3 }
+  const result = await runTrials(structuredClone(request))
+  expect(result.rewards).toMatchObject({ mode: 'monte-carlo', runs: 3 })
+  expect(result.rewards?.issuance[90].mean).toBeGreaterThan(0)
+  expect(result.rewards).not.toHaveProperty('players')
+  expect(structuredClone(result)).toEqual(result)
+})
+
 describe('Worker error transport', () => {
   it('reconstructs only safe whitelisted DTO fields and rejects forged error shapes', () => {
     const error = {

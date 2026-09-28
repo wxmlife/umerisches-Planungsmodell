@@ -5,6 +5,7 @@ import type {
   Scenario,
   Tier,
   TierPurchasePolicy,
+  RewardConfig,
 } from './types'
 
 export const DEFAULT_BATTLE_FORMULAS: BattleFormulaConfig = {
@@ -164,6 +165,41 @@ const guildDefaults = (
   priorities: { normal: 1, core: 2, center: 3 },
 })
 
+export const DEFAULT_REWARD_CONFIG: RewardConfig = {
+  targetPoints: 110_000,
+  dailyPointCap: 22_000,
+  rankMinActiveDays: 3,
+  rankMinProgressRate: 0.4,
+  personalStages: [
+    { points: 1_000, rewards: [{ resourceId: 90, quantity: 20 }] },
+    { points: 5_600, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }] },
+    { points: 10_000, rewards: [{ resourceId: 90, quantity: 20 }, { resourceId: 91, quantity: 20 }] },
+    { points: 18_900, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 20 }] },
+    { points: 25_500, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }] },
+    { points: 35_500, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 90, quantity: 20 }, { resourceId: 91, quantity: 20 }] },
+    { points: 43_700, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 20 }] },
+    { points: 56_200, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }] },
+    { points: 66_100, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 90, quantity: 20 }, { resourceId: 91, quantity: 20 }] },
+    { points: 81_000, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 20 }] },
+    { points: 92_600, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 20 }] },
+    { points: 110_000, rewards: [{ resourceId: 2, quantity: 20 }, { resourceId: 5, quantity: 20 }, { resourceId: 90, quantity: 40 }, { resourceId: 91, quantity: 20 }] },
+  ],
+  guildMilestones: [
+    { completionRate: 0.2, minimumPersonalRate: 0.1, rewards: [{ resourceId: 2, quantity: 10 }, { resourceId: 90, quantity: 10 }] },
+    { completionRate: 0.4, minimumPersonalRate: 0.2, rewards: [{ resourceId: 2, quantity: 10 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 10 }] },
+    { completionRate: 0.6, minimumPersonalRate: 0.3, rewards: [{ resourceId: 2, quantity: 10 }, { resourceId: 90, quantity: 10 }, { resourceId: 91, quantity: 10 }] },
+    { completionRate: 0.8, minimumPersonalRate: 0.4, rewards: [{ resourceId: 2, quantity: 10 }, { resourceId: 5, quantity: 10 }, { resourceId: 90, quantity: 10 }, { resourceId: 91, quantity: 10 }] },
+  ],
+  rankRewards: [
+    { rank: 1, merit: 20, titleId: null, titleLabel: '冠军聊天称号' },
+    { rank: 2, merit: 15, titleId: null, titleLabel: '亚军聊天称号' },
+    { rank: 3, merit: 10, titleId: null, titleLabel: '季军聊天称号' },
+    { rank: 4, merit: 5, titleId: null, titleLabel: '参赛聊天称号' },
+  ],
+  legacyProgressThreshold: 664_000,
+  legacyFreeMode: 'replace',
+}
+
 export const DEFAULT_SCENARIO: Scenario = {
   battle: {
     formulas: { ...DEFAULT_BATTLE_FORMULAS },
@@ -218,6 +254,7 @@ export const DEFAULT_SCENARIO: Scenario = {
     guildDefaults('C', '公会 C', { normal: 20, small: 0, whale: 0 }),
     guildDefaults('D', '公会 D', { normal: 10, small: 0, whale: 0 }),
   ],
+  rewards: structuredClone(DEFAULT_REWARD_CONFIG),
   simulation: {
     runs: 1000,
     seed: 20_260_924,

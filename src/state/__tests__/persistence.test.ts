@@ -8,6 +8,41 @@ beforeEach(() => localStorage.clear())
 const valid = () => createPersistedEnvelope(createSimulatorState(createFormulaScenario()))
 
 describe('local v3 recovery', () => {
+  it('defaults missing rewards in pre-extension v3 without discarding custom scenario fields', () => {
+    const data = JSON.parse(JSON.stringify(valid()))
+    for (const key of ['draftScenario', 'appliedScenario']) {
+      delete data[key].rewards
+      data[key].battle.alpha = 1.8
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    const loaded = loadPersistedSimulatorState(localStorage)
+    expect(loaded.state.appliedScenario.rewards).toBeDefined()
+    expect(loaded.state.appliedScenario.rewards.targetPoints).toBe(110000)
+    expect(loaded.state.appliedScenario.battle.alpha).toBe(1.8)
+    expect(loaded.recoveryRaw).toBeNull()
+    expect(loaded.state.draftScenario.rewards).not.toBe(loaded.state.appliedScenario.rewards)
+  })
+  it('round trips custom reward config and preserves an invalid numeric reward draft', () => {
+    const envelope = valid()
+    expect(envelope.appliedScenario.rewards).toBeDefined()
+    envelope.appliedScenario.rewards.rankRewards[0].titleId = 12345
+    envelope.draftScenario.rewards = structuredClone(envelope.appliedScenario.rewards)
+    envelope.draftScenario.rewards.dailyPointCap = -1
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope))
+    const loaded = loadPersistedSimulatorState(localStorage)
+    expect(loaded.state.appliedScenario.rewards.rankRewards[0].titleId).toBe(12345)
+    expect(loaded.state.draftScenario.rewards.dailyPointCap).toBe(-1)
+    expect(loaded.state.validation.valid).toBe(false)
+  })
+  it('backs up malformed nested reward data instead of treating it as missing defaults', () => {
+    const data = JSON.parse(JSON.stringify(valid()))
+    data.draftScenario.rewards = { personalStages: null }
+    const raw = JSON.stringify(data)
+    localStorage.setItem(STORAGE_KEY, raw)
+    const loaded = loadPersistedSimulatorState(localStorage)
+    expect(loaded.recoveryRaw).toBe(raw)
+    expect(loaded.state.draftScenario).toEqual(loaded.state.appliedScenario)
+  })
   it('round trips only the exact v3 persisted fields and rebuilds results', () => {
     expect(STORAGE_KEY).toBe('alliance-war-simulator/scenario/v3')
     expect(RECOVERY_KEY).toBe('alliance-war-simulator/recovery/latest')
