@@ -36,4 +36,16 @@ export const SAMPLE_MONTE_CARLO_RESULT: MonteCarloResult = {
   cancelled: false,
 }
 
-export const SAMPLE_SPEND_EVENTS: SpendEvent[] = []
+export const SAMPLE_SPEND_EVENTS: SpendEvent[] = [
+  { minute: 0, guildId: 'A', playerId: 'A-whale-1', tier: 'whale', offerId: 'flyer', usd: 0.99, diamonds: 0, ads: 0 },
+  { minute: 60, guildId: 'A', playerId: 'A-whale-1', tier: 'whale', offerId: 'cheer-stick', usd: 2.99, diamonds: 0, ads: 0 },
+  { minute: 100, guildId: 'A', playerId: 'A-normal-1', tier: 'normal', offerId: 'ad-or-diamond-ad', usd: 0, diamonds: 0, ads: 1 },
+  { minute: 1440, guildId: 'B', playerId: 'B-small-1', tier: 'small', offerId: 'instant-600', usd: 2.99, diamonds: 0, ads: 0 },
+  { minute: 1500, guildId: 'B', playerId: 'B-small-1', tier: 'small', offerId: 'ad-or-diamond-diamond', usd: 0, diamonds: 20, ads: 0 },
+  { minute: 1600, guildId: 'B', playerId: 'B-small-1', tier: 'small', offerId: 'ad-or-diamond-ad', usd: 0, diamonds: 0, ads: 1 },
+  { minute: 2880, guildId: 'C', playerId: 'C-normal-1', tier: 'normal', offerId: 'instant-1000', usd: 5.99, diamonds: 0, ads: 0 },
+  { minute: 2900, guildId: 'C', playerId: 'C-normal-1', tier: 'normal', offerId: 'ad-or-diamond-diamond', usd: 0, diamonds: 20, ads: 0 },
+  { minute: 3000, guildId: 'C', playerId: 'C-normal-1', tier: 'normal', offerId: 'ad-or-diamond-ad', usd: 0, diamonds: 0, ads: 1 },
+  { minute: 4320, guildId: 'D', playerId: 'D-normal-1', tier: 'normal', offerId: 'ad-or-diamond-diamond', usd: 0, diamonds: 20, ads: 0 },
+  { minute: 4400, guildId: 'D', playerId: 'D-normal-1', tier: 'normal', offerId: 'ad-or-diamond-ad', usd: 0, diamonds: 0, ads: 1 },
+]

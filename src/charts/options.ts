@@ -3,6 +3,7 @@ import type { AttritionPoint } from '../domain/battle'
 import type { MonteCarloResult } from '../domain/aggregate'
 import type { SeasonResult, SeasonSnapshot } from '../domain/season'
 import type { SensitivityResult } from '../domain/sensitivity'
+import type { GuildSeasonResult } from '../domain/season'
 import { seasonChartTooltip } from './tooltip'
 
 export interface DashboardSeries {
@@ -22,6 +23,18 @@ export interface DashboardSeries {
 
 export type DashboardChartOption = Omit<EChartsOption, 'series'> & {
   series: DashboardSeries[]
+}
+
+export interface SpendPoint {
+  minute: number
+  cashUsd: number
+  diamonds: number
+  ads: number
+}
+
+export interface CumulativeSpendSeries {
+  totals: SpendPoint[]
+  byGroup: Record<string, SpendPoint[]>
 }
 
 const GUILD_COLORS = ['#57a8ff', '#f3c665', '#ef7aa8', '#7dd7c4']
@@ -181,5 +194,80 @@ export function buildSensitivityOption(
       type: 'line',
       data: result?.points.map((point) => [point.x, point.metricValue]) ?? [],
     }],
+  }
+}
+
+export function buildCumulativeSpendOption(
+  data: CumulativeSpendSeries,
+): DashboardChartOption {
+  const series: DashboardSeries[] = []
+  for (const [group, points] of Object.entries(data.byGroup)) {
+    series.push({ name: `${group} 现金`, type: 'line', data: points.map((point) => [point.minute, point.cashUsd]) })
+    series.push({ name: `${group} 钻石`, type: 'line', data: points.map((point) => [point.minute, point.diamonds]) })
+    series.push({ name: `${group} 广告`, type: 'line', data: points.map((point) => [point.minute, point.ads]) })
+  }
+  return {
+    ...baseOption(),
+    tooltip: {
+      trigger: 'axis',
+      confine: false,
+      formatter: (parameters: unknown) => {
+        const list = Array.isArray(parameters) ? parameters : [parameters]
+        const rows = list.filter((item): item is { seriesName: string; value: [number, number] } => (
+          Boolean(item && typeof item === 'object' && 'seriesName' in item && 'value' in item)
+        ))
+        const minute = rows[0]?.value?.[0] ?? 0
+        return [`<strong>${minute} 分钟</strong>`, ...rows.map((row) => `${row.seriesName}：${row.value[1]}`)].join('<br/>')
+      },
+    },
+    series,
+  }
+}
+
+export function buildSupplyEfficiencyOption(
+  guild: GuildSeasonResult | undefined,
+  sensitivity: SensitivityResult | null,
+): DashboardChartOption {
+  const baselineScore = sensitivity?.points[0]?.finalScore ?? 0
+  const points = sensitivity?.points ?? []
+  const series: DashboardSeries[] = [
+    {
+      name: '实际获得粉丝',
+      type: 'line',
+      data: points.map((point) => [point.x, point.acceptedFans]),
+    },
+    {
+      name: '浪费粉丝',
+      type: 'line',
+      data: points.map((point) => [point.x, point.wastedFans]),
+    },
+    {
+      name: '每美元新增积分',
+      type: 'line',
+      data: points.map((point) => [
+        point.x,
+        point.usd > 0 ? (point.finalScore - baselineScore) / point.usd : 0,
+      ]),
+    },
+    {
+      name: '第一名概率',
+      type: 'line',
+      data: points.map((point) => [point.x, point.firstPlaceProbability]),
+    },
+  ]
+  if (points.length === 0 && guild) {
+    const entries = Object.entries(guild.supplyBySource)
+    series.push(
+      { name: '理论粉丝', type: 'bar', data: entries.map(([source, value]) => [source, value.theoreticalFans]) },
+      { name: '实际粉丝', type: 'bar', data: entries.map(([source, value]) => [source, value.acceptedFans]) },
+      { name: '浪费', type: 'bar', data: entries.map(([source, value]) => [source, value.wastedFans]) },
+    )
+  }
+  return {
+    ...baseOption(),
+    xAxis: points.length > 0
+      ? { type: 'value', name: '日预算' }
+      : { type: 'category', name: '恢复来源' },
+    series,
   }
 }

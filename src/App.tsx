@@ -1,6 +1,8 @@
 import './App.css'
 import { ParameterSidebar } from './components/ParameterSidebar'
 import { RunToolbar } from './components/RunToolbar'
+import { SupplyEfficiencyPanel } from './components/SupplyEfficiencyPanel'
+import { CumulativeSpendPanel } from './components/CumulativeSpendPanel'
 import { useSimulator } from './state/useSimulator'
 
 function App() {
@@ -31,6 +33,16 @@ function App() {
           <h2>6 日基准推演</h2>
           <p>{state.deterministic.snapshots.length.toLocaleString()} 个快照</p>
         </section>
+        <SupplyEfficiencyPanel
+          guildId={state.analysis.targetGuildId}
+          season={state.deterministic}
+          sensitivity={state.sensitivity}
+          targetNodes={state.analysis.targetNodes}
+        />
+        <CumulativeSpendPanel
+          events={state.deterministic.spendEvents}
+          diamondUsdRate={state.draft.supply.diamondUsdRate}
+        />
       </main>
     </div>
   )
