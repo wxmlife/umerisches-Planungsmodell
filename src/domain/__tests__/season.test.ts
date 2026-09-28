@@ -1,9 +1,67 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import * as compiler from '../formula/compiler'
 import { DEFAULT_SCENARIO } from '../defaults'
 import { createSeededRng } from '../rng'
 import { runSeason } from '../season'
 import { aggregateSpend } from '../economy'
-import { createPurchaseScenario } from '../../test/fixtures'
+import { createFormulaScenario, createPurchaseScenario } from '../../test/fixtures'
+
+describe('formula-driven season decisions', () => {
+  it('reproduces the new Bernoulli fixed-seed six-day baseline', () => {
+    const result = runSeason(DEFAULT_SCENARIO, createSeededRng(20_260_924), 'stochastic')
+    expect(result.termination).toBe('season-end')
+    expect(result.eventCount).toBe(15022)
+    const battles = result.events.filter((event) => event.type === 'battle')
+    expect(battles).toHaveLength(7783)
+    expect(battles.filter((event) => event.attackerWon)).toHaveLength(6808)
+    const expected = {
+      A: [30156, 3076.39166666667, 33232.39166666667],
+      B: [26636, 135.84999999999934, 26771.85],
+      C: [42766, 217.7500000000095, 42983.75000000001],
+      D: [24667, 51.74166666666571, 24718.741666666665],
+    }
+    for (const [id, [attack, holding, total]] of Object.entries(expected)) {
+      expect(result.guilds[id].attackScore).toBe(attack)
+      expect(result.guilds[id].holdingScore).toBeCloseTo(holding, 8)
+      expect(result.guilds[id].totalScore).toBeCloseTo(total, 8)
+    }
+  })
+  it.each([[0, 'normal-01', 'deploy'], [1, 'core-01', 'battle']] as const)(
+    'uses probability %s in both target utility and the selected battle', (probability, nodeId, type) => {
+      const scenario = createFormulaScenario()
+      scenario.battle.formulas = { ...scenario.battle.formulas, winProbability: String(probability) }
+      const result = runSeason(scenario, createSeededRng(11), 'deterministic')
+      const firstB = result.events.find((event) => event.guildId === 'B')
+      expect(firstB).toMatchObject({ minute: 0, type, nodeId })
+      if (probability === 1) expect(firstB?.attackerWon).toBe(true)
+    },
+  )
+
+  it('uses editable effective power when choosing a defended target', () => {
+    const scenario = createFormulaScenario()
+    scenario.guilds[0].roster = { normal: 0, small: 0, whale: 1 }
+    scenario.battle.formulas = { ...scenario.battle.formulas, preRandomPower: '1' }
+    const result = runSeason(scenario, createSeededRng(11), 'deterministic')
+    expect(result.events.find((event) => event.guildId === 'B')).toMatchObject({ type: 'battle', nodeId: 'core-01', attackerWon: false })
+  })
+
+  it('compiles the four formulas once while evaluating many targets and battles', () => {
+    const compile = vi.spyOn(compiler, 'compileFormula')
+    try {
+      const result = runSeason(DEFAULT_SCENARIO, createSeededRng(11), 'deterministic')
+      expect(result.events.filter((event) => event.type === 'battle').length).toBeGreaterThan(10)
+      expect(compile.mock.calls.map(([id]) => id).sort()).toEqual(['displayedTendency', 'fanLoss', 'preRandomPower', 'winProbability'])
+    } finally { compile.mockRestore() }
+  })
+
+  it('labels compile errors with the season execution context', () => {
+    const scenario = createFormulaScenario()
+    scenario.battle.formulas = { ...scenario.battle.formulas, winProbability: 'currentFans' }
+    expect(() => runSeason(scenario, createSeededRng(11), 'deterministic')).toThrow(
+      expect.objectContaining({ kind: 'formula', code: 'UNKNOWN_IDENTIFIER', context: 'deterministic' }),
+    )
+  })
+})
 
 describe('six-day season engine', () => {
   it.each([

@@ -1,3 +1,6 @@
+import type { BattleFormulaConfig } from './formula/types'
+export type { BattleFormulaConfig } from './formula/types'
+
 export type Tier = 'normal' | 'small' | 'whale'
 export type NodeKind = 'normal' | 'core' | 'center'
 export type CurrencyKind = 'usd' | 'diamond' | 'ad'
@@ -8,6 +11,7 @@ export interface LossBand {
 }
 
 export interface BattleConfig {
+  formulas: BattleFormulaConfig
   baseIdolPower: number
   tierMultipliers: Record<Tier, number>
   alpha: number

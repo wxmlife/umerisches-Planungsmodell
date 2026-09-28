@@ -1,10 +1,18 @@
 import type {
+  BattleFormulaConfig,
   GuildConfig,
   RecoveryOffer,
   Scenario,
   Tier,
   TierPurchasePolicy,
 } from './types'
+
+export const DEFAULT_BATTLE_FORMULAS: BattleFormulaConfig = {
+  preRandomPower: 'idolPower <= 0 || initialFans <= 0 || currentFans <= 0 || styleMultiplier <= 0 ? 0 : idolPower * pow(initialFans / 1000, alpha) * pow(currentFans / initialFans, beta) * styleMultiplier',
+  displayedTendency: 'attackerPower + defenderPower > 0 ? attackerPower / (attackerPower + defenderPower) : 0.5',
+  winProbability: 'uniformWinProbability(attackerPower, defenderPower, randomMin, randomMax)',
+  fanLoss: 'round(currentFans * lossBandRate * sideLossFactor)',
+}
 
 const SUPPLY_PRIORITY = [
   'ad-or-diamond-ad',
@@ -158,6 +166,7 @@ const guildDefaults = (
 
 export const DEFAULT_SCENARIO: Scenario = {
   battle: {
+    formulas: { ...DEFAULT_BATTLE_FORMULAS },
     baseIdolPower: 100_000,
     tierMultipliers: { normal: 1, small: 3, whale: 9 },
     alpha: 1.36,

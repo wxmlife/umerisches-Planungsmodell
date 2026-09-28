@@ -1,4 +1,5 @@
 import { aggregateTrials, type MonteCarloResult } from '../domain/aggregate'
+import { createBattleRuntime, type BattleRuntime } from '../domain/battle'
 import { createSeededRng } from '../domain/rng'
 import { runSeason, type SeasonResult } from '../domain/season'
 import type { Scenario } from '../domain/types'
@@ -44,6 +45,7 @@ function yieldToEventLoop(): Promise<void> {
 export async function runTrials(
   request: TrialRequest,
   hooks: TrialHooks = {},
+  runtime: BattleRuntime = createBattleRuntime(request.scenario.battle, 'monte-carlo'),
 ): Promise<MonteCarloResult> {
   const results: SeasonResult[] = []
   let cancelled = false
@@ -57,6 +59,7 @@ export async function runTrials(
       request.scenario,
       createSeededRng(mixSeed(request.seed, index)),
       'stochastic',
+      runtime,
     )
     if (season.termination === 'event-limit') {
       throw new Error(eventLimitMessage(request.scenario, season))

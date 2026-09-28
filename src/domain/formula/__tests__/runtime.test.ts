@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { uniformWinProbability as legacyUniformWinProbability } from '../../battle'
+import { legacyUniformWinProbability } from '../../../test/legacyBattle'
 import { compileFormula } from '../compiler'
 import * as parser from '../parser'
 import { evaluateFormula } from '../runtime'

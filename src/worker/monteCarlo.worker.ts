@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import { runSensitivity } from '../domain/sensitivity'
+import { normalizeFormulaError } from '../domain/formula/types'
 import type { WorkerRequest, WorkerResponse } from './protocol'
 import { runTrials } from './runner'
 
@@ -47,10 +48,12 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
         : { type: 'sensitivity-result', runId: message.runId, result })
     }
   } catch (error) {
+    const formula = normalizeFormulaError(error, message.type === 'run' ? 'monte-carlo' : 'sensitivity')
     post({
       type: 'error',
       runId: message.runId,
-      message: error instanceof Error ? error.message : String(error),
+      message: formula?.message ?? '分析失败，请检查参数后重试。',
+      ...(formula ? { error: formula } : {}),
     })
   } finally {
     cancelled.delete(message.runId)

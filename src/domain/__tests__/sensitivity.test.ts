@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as runner from '../../worker/runner'
-import { createPurchaseScenario } from '../../test/fixtures'
+import * as compiler from '../formula/compiler'
+import { createFormulaScenario, createPurchaseScenario } from '../../test/fixtures'
 import { DEFAULT_SCENARIO } from '../defaults'
 import {
   deriveNodeTargetThreshold,
@@ -10,6 +11,35 @@ import {
 } from '../sensitivity'
 
 describe('sensitivity analysis', () => {
+  it.each([0, 1])('shares probability %s between challenge metrics and trial outcomes', async (probability) => {
+    const scenario = createFormulaScenario()
+    scenario.season.nodeCounts = { normal: 0, core: 1, center: 0 }
+    scenario.score.holdPerHourBase = 0
+    scenario.battle.formulas = { ...scenario.battle.formulas, winProbability: String(probability), fanLoss: 'currentFans' }
+    const compile = vi.spyOn(compiler, 'compileFormula')
+    try {
+      const result = await runSensitivity(scenario, {
+        parameter: 'battle.beta', metric: 'battleThreeWinProbability', min: 1, max: 2, step: 1,
+        targetGuildId: 'B', runs: 3, seed: 11,
+      })
+      expect(result.points.map((point) => point.metricValue)).toEqual([probability, probability])
+      expect(result.points.every((point) => point.finalScore <= (probability === 0 ? 24 : 20))).toBe(true)
+      for (const id of ['preRandomPower', 'displayedTendency', 'winProbability', 'fanLoss']) {
+        expect(compile.mock.calls.filter(([formulaId]) => formulaId === id)).toHaveLength(2)
+      }
+    } finally { compile.mockRestore() }
+  })
+
+  it('preserves sensitivity context for formula errors from trials and challenge-only branches', async () => {
+    for (const fanLoss of ['1 / 0', 'attackerWon ? 0 : 1 / 0']) {
+      const scenario = createFormulaScenario()
+      scenario.battle.formulas = { ...scenario.battle.formulas, winProbability: '1', fanLoss }
+      await expect(runSensitivity(scenario, {
+        parameter: 'battle.beta', metric: 'battleThreeWinProbability', min: 1, max: 1, step: 1,
+        targetGuildId: 'B', runs: 1, seed: 11,
+      })).rejects.toMatchObject({ kind: 'formula', formulaId: 'fanLoss', code: 'DIVIDE_BY_ZERO', context: 'sensitivity' })
+    }
+  })
   it('localizes every scan and hidden zero control to the target guild and tier', async () => {
     const scenario = createPurchaseScenario()
     scenario.supply.offers.push(...structuredClone(DEFAULT_SCENARIO.supply.offers))

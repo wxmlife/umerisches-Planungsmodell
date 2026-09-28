@@ -3,6 +3,22 @@ import type { SpendEvent } from '../domain/economy'
 import { DEFAULT_SCENARIO } from '../domain/defaults'
 import type { Scenario, TierPurchasePolicy } from '../domain/types'
 
+// Two players and one occupied high-value node versus a neutral low-value node.
+export function createFormulaScenario(): Scenario {
+  const scenario = structuredClone(DEFAULT_SCENARIO)
+  scenario.season = { days: 1, centerUnlockDay: 1, nodeCounts: { normal: 1, core: 1, center: 0 } }
+  scenario.fans = { ...scenario.fans, capacity: 1000, minDeploy: 1000, maxDeploy: 1000, naturalCapacityPerDay: 0 }
+  scenario.guilds = scenario.guilds.slice(0, 2)
+  for (const guild of scenario.guilds) {
+    guild.roster = { normal: 1, small: 0, whale: 0 }
+    guild.deployFans = { normal: 1000, core: 1000, center: 1000 }
+    guild.priorities = { normal: 1, core: 1, center: 0 }
+    for (const policy of Object.values(guild.purchasePolicies)) policy.supplyPriority = []
+  }
+  scenario.guilds[0].priorities.normal = 0
+  return scenario
+}
+
 // One player can repeatedly deploy onto neutral nodes, isolating purchases from battles.
 export function createPurchaseScenario(policy: Partial<TierPurchasePolicy> = {}): Scenario {
   const scenario = structuredClone(DEFAULT_SCENARIO)

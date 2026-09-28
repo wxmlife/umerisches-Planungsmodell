@@ -1,6 +1,7 @@
 import type { MonteCarloResult } from '../domain/aggregate'
 import type { SensitivityRequest, SensitivityResult } from '../domain/sensitivity'
 import type { Scenario } from '../domain/types'
+import type { FormulaErrorDto } from '../domain/formula/types'
 
 export type WorkerRequest =
   | { type: 'run'; runId: string; scenario: Scenario; runs: number; seed: number }
@@ -12,4 +13,4 @@ export type WorkerResponse =
   | { type: 'result'; runId: string; result: MonteCarloResult }
   | { type: 'sensitivity-result'; runId: string; result: SensitivityResult }
   | { type: 'cancelled'; runId: string }
-  | { type: 'error'; runId: string; message: string }
+  | { type: 'error'; runId: string; message: string; error?: FormulaErrorDto }

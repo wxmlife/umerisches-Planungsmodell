@@ -1,5 +1,10 @@
 import type { Rng } from './rng'
 import type { BattleConfig } from './types'
+import { DEFAULT_BATTLE_FORMULAS } from './defaults'
+import { compileFormula } from './formula/compiler'
+import { evaluateFormula } from './formula/runtime'
+import { normalizeFormulaError } from './formula/types'
+import type { FormulaErrorContext } from './formula/types'
 
 export interface CombatantInput {
   idolPower: number
@@ -50,28 +55,83 @@ export function calculateStyleMultiplier(
   return 1 + relation * config.styleAdvantage
 }
 
-export function calculatePreRandomPower(
-  combatant: CombatantInput,
+export function createBattleRuntime(
   config: BattleConfig,
-): number {
-  if (
-    combatant.idolPower <= 0
-    || combatant.initialFans <= 0
-    || combatant.currentFans <= 0
-    || combatant.styleMultiplier <= 0
-  ) {
-    return 0
+  context: FormulaErrorContext = 'deterministic',
+) {
+  try {
+    const power = compileFormula('preRandomPower', config.formulas.preRandomPower)
+    const tendency = compileFormula('displayedTendency', config.formulas.displayedTendency)
+    const probability = compileFormula('winProbability', config.formulas.winProbability)
+    const loss = compileFormula('fanLoss', config.formulas.fanLoss)
+    const powerCache = new Map<string, number>()
+    // Two numeric lookup levels avoid constructing a string for every target.
+    // At most 16 attacker powers × 64 defender powers = 1,024 entries.
+    const probabilityCache = new Map<number, Map<number, number>>()
+    let cachedRandomMin = config.randomMin
+    let cachedRandomMax = config.randomMax
+    // Target evaluation repeatedly visits unchanged combatants. Cache only
+    // successful pure evaluations, bounded independently for this runtime.
+    const memo = (cache: Map<string, number>, key: string, evaluate: () => number): number => {
+      const cached = cache.get(key)
+      if (cached !== undefined) return cached
+      const result = evaluate()
+      cache.set(key, result)
+      if (cache.size > 1024) cache.delete(cache.keys().next().value!)
+      return result
+    }
+    return {
+      preRandomPower(combatant: CombatantInput): number {
+        if (combatant.idolPower <= 0 || combatant.initialFans <= 0 || combatant.currentFans <= 0 || combatant.styleMultiplier <= 0) return 0
+        const key = [combatant.idolPower, combatant.initialFans, combatant.currentFans, combatant.styleMultiplier, config.alpha, config.beta].join(':')
+        return memo(powerCache, key, () => evaluateFormula(power, { ...combatant, alpha: config.alpha, beta: config.beta }, context))
+      },
+      displayedTendency(attackerPower: number, defenderPower: number): number {
+        return evaluateFormula(tendency, { attackerPower, defenderPower }, context)
+      },
+      winProbability(attackerPower: number, defenderPower: number): number {
+        if (cachedRandomMin !== config.randomMin || cachedRandomMax !== config.randomMax) {
+          probabilityCache.clear()
+          cachedRandomMin = config.randomMin
+          cachedRandomMax = config.randomMax
+        }
+        let defenderPowers = probabilityCache.get(attackerPower)
+        const cached = defenderPowers?.get(defenderPower)
+        if (cached !== undefined) return cached
+        const result = evaluateFormula(probability, { attackerPower, defenderPower, randomMin: config.randomMin, randomMax: config.randomMax }, context)
+        if (!defenderPowers) {
+          defenderPowers = new Map()
+          probabilityCache.set(attackerPower, defenderPowers)
+          if (probabilityCache.size > 16) probabilityCache.delete(probabilityCache.keys().next().value!)
+        }
+        defenderPowers.set(defenderPower, result)
+        if (defenderPowers.size > 64) defenderPowers.delete(defenderPowers.keys().next().value!)
+        return result
+      },
+      fanLoss(currentFans: number, attackerToDefenderPowerRatio: number, lossBandRate: number, attackerWon: boolean, isDefender: boolean): number {
+        if (currentFans <= 0) return 0
+        const rawLoss = evaluateFormula(loss, {
+          currentFans, attackerToDefenderPowerRatio, lossBandRate,
+          sideLossFactor: isDefender ? config.homeLossFactor : 1, attackerWon, isDefender,
+        }, context)
+        return Math.min(currentFans, Math.round(rawLoss))
+      },
+    }
+  } catch (error) {
+    throw normalizeFormulaError(error, context) ?? error
   }
+}
 
-  return combatant.idolPower
-    * Math.pow(combatant.initialFans / 1000, config.alpha)
-    * Math.pow(combatant.currentFans / combatant.initialFans, config.beta)
-    * combatant.styleMultiplier
+export type BattleRuntime = ReturnType<typeof createBattleRuntime>
+
+// Compatibility helpers use the same evaluator. Simulation paths create one
+// runtime up front and reuse it instead of compiling at each call site.
+export function calculatePreRandomPower(combatant: CombatantInput, config: BattleConfig): number {
+  return createBattleRuntime(config).preRandomPower(combatant)
 }
 
 export function displayTendency(attackerPower: number, defenderPower: number): number {
-  const total = attackerPower + defenderPower
-  return total > 0 ? attackerPower / total : 0.5
+  return evaluateFormula(compileFormula('displayedTendency', DEFAULT_BATTLE_FORMULAS.displayedTendency), { attackerPower, defenderPower })
 }
 
 export function uniformWinProbability(
@@ -80,20 +140,7 @@ export function uniformWinProbability(
   minRoll: number,
   maxRoll: number,
 ): number {
-  if (defenderPower <= 0) return attackerPower > 0 ? 1 : 0
-  const ratio = attackerPower / defenderPower
-  if (!(ratio > 0) || !(maxRoll > minRoll)) return 0
-  const width = maxRoll - minRoll
-  const linearLo = Math.max(minRoll, minRoll / ratio)
-  const linearHi = Math.min(maxRoll, maxRoll / ratio)
-  const linearArea = linearHi > linearLo
-    ? (
-        0.5 * ratio * (linearHi ** 2 - linearLo ** 2)
-        - minRoll * (linearHi - linearLo)
-      ) / width
-    : 0
-  const fullArea = Math.max(0, maxRoll - Math.max(minRoll, maxRoll / ratio))
-  return Math.min(1, Math.max(0, (linearArea + fullArea) / width))
+  return evaluateFormula(compileFormula('winProbability', DEFAULT_BATTLE_FORMULAS.winProbability), { attackerPower, defenderPower, randomMin: minRoll, randomMax: maxRoll })
 }
 
 export function resolveLossRate(ratio: number, config: BattleConfig): number {
@@ -102,8 +149,9 @@ export function resolveLossRate(ratio: number, config: BattleConfig): number {
     ?? 0
 }
 
-function clampedLoss(fans: number, rate: number): number {
-  return Math.min(Math.max(0, Math.round(fans * rate)), Math.max(0, fans))
+function powerRatio(attackerPower: number, defenderPower: number): number {
+  if (defenderPower === 0) return attackerPower > 0 ? 1e15 : 0
+  return Math.min(1e15, attackerPower / defenderPower)
 }
 
 export function resolveBattle(
@@ -111,34 +159,23 @@ export function resolveBattle(
   attacker: CombatantInput,
   defender: CombatantInput,
   rng: Rng,
+  runtime: BattleRuntime = createBattleRuntime(config),
 ): BattleOutcome {
-  const attackerPrePower = calculatePreRandomPower(attacker, config)
-  const defenderPrePower = calculatePreRandomPower(defender, config)
-  const width = config.randomMax - config.randomMin
-  const attackerRoll = config.randomMin + rng.next() * width
-  const defenderRoll = config.randomMin + rng.next() * width
-  const attackerWon = attackerPrePower * attackerRoll > defenderPrePower * defenderRoll
-  const ratio = defenderPrePower > 0
-    ? attackerPrePower / defenderPrePower
-    : attackerPrePower > 0 ? Number.POSITIVE_INFINITY : 0
+  const attackerPrePower = runtime.preRandomPower(attacker)
+  const defenderPrePower = runtime.preRandomPower(defender)
+  const actualWinProbability = runtime.winProbability(attackerPrePower, defenderPrePower)
+  const attackerWon = rng.next() < actualWinProbability
+  const ratio = powerRatio(attackerPrePower, defenderPrePower)
   const lossRate = resolveLossRate(ratio, config)
-  const attackerLoss = clampedLoss(attacker.currentFans, lossRate)
-  const defenderLoss = clampedLoss(
-    defender.currentFans,
-    lossRate * config.homeLossFactor,
-  )
+  const attackerLoss = runtime.fanLoss(attacker.currentFans, ratio, lossRate, attackerWon, false)
+  const defenderLoss = runtime.fanLoss(defender.currentFans, ratio, lossRate, attackerWon, true)
 
   return {
     attackerWon,
     attackerPrePower,
     defenderPrePower,
-    displayedTendency: displayTendency(attackerPrePower, defenderPrePower),
-    actualWinProbability: uniformWinProbability(
-      attackerPrePower,
-      defenderPrePower,
-      config.randomMin,
-      config.randomMax,
-    ),
+    displayedTendency: runtime.displayedTendency(attackerPrePower, defenderPrePower),
+    actualWinProbability,
     attackerLoss,
     defenderLoss,
     attackerFansAfter: Math.max(0, attacker.currentFans - attackerLoss),
@@ -149,6 +186,7 @@ export function resolveBattle(
 export function buildAttritionSeries(
   config: BattleConfig,
   input: AttritionSeriesInput,
+  runtime: BattleRuntime = createBattleRuntime(config),
 ): AttritionPoint[] {
   const rows: AttritionPoint[] = []
   let defenderFans = Math.max(0, Math.round(input.defenderInitialFans))
@@ -166,16 +204,14 @@ export function buildAttritionSeries(
       currentFans: defenderFans,
       styleMultiplier: input.defenderStyleMultiplier ?? 1,
     }
-    const attackerPrePower = calculatePreRandomPower(attacker, config)
-    const defenderPrePower = calculatePreRandomPower(defender, config)
-    const ratio = defenderPrePower > 0
-      ? attackerPrePower / defenderPrePower
-      : Number.POSITIVE_INFINITY
+    const attackerPrePower = runtime.preRandomPower(attacker)
+    const defenderPrePower = runtime.preRandomPower(defender)
+    const actualWinProbability = runtime.winProbability(attackerPrePower, defenderPrePower)
+    const ratio = powerRatio(attackerPrePower, defenderPrePower)
     const lossRate = resolveLossRate(ratio, config)
-    const defenderLoss = clampedLoss(
-      defenderFans,
-      lossRate * config.homeLossFactor,
-    )
+    const lossWin = runtime.fanLoss(defenderFans, ratio, lossRate, true, true)
+    const lossLose = runtime.fanLoss(defenderFans, ratio, lossRate, false, true)
+    const defenderLoss = Math.min(defenderFans, Math.round(actualWinProbability * lossWin + (1 - actualWinProbability) * lossLose))
     const defenderFansAfter = Math.max(0, defenderFans - defenderLoss)
 
     rows.push({
@@ -184,13 +220,8 @@ export function buildAttritionSeries(
       defenderFans,
       attackerPrePower,
       defenderPrePower,
-      displayedTendency: displayTendency(attackerPrePower, defenderPrePower),
-      actualWinProbability: uniformWinProbability(
-        attackerPrePower,
-        defenderPrePower,
-        config.randomMin,
-        config.randomMax,
-      ),
+      displayedTendency: runtime.displayedTendency(attackerPrePower, defenderPrePower),
+      actualWinProbability,
       lossRate,
       defenderLoss,
       defenderFansAfter,

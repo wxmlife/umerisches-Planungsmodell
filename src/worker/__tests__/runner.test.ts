@@ -1,10 +1,84 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import * as compiler from '../../domain/formula/compiler'
+import { normalizeFormulaError } from '../../domain/formula/types'
 import { DEFAULT_SCENARIO } from '../../domain/defaults'
 import { runTrials } from '../runner'
-import { createPurchaseScenario } from '../../test/fixtures'
-import type { WorkerRequest } from '../protocol'
+import { createFormulaScenario, createPurchaseScenario } from '../../test/fixtures'
+import type { WorkerRequest, WorkerResponse } from '../protocol'
+
+describe('Worker error transport', () => {
+  it('reconstructs only safe whitelisted DTO fields and rejects forged error shapes', () => {
+    const error = {
+      kind: 'formula', formulaId: 'fanLoss', phase: 'runtime', code: 'DIVIDE_BY_ZERO',
+      message: 'private source and stack', source: 'secret', stack: 'secret',
+      range: { start: 1, end: 6, internal: () => 'secret' },
+      variables: { currentFans: 1000, sideLossFactor: Infinity, attackerWon: true, isDefender: 1, secret: 'secret' },
+    }
+    const dto = normalizeFormulaError(error, 'sensitivity')
+    expect(dto).toEqual({ kind: 'formula', formulaId: 'fanLoss', phase: 'runtime', code: 'DIVIDE_BY_ZERO',
+      message: '公式不能除以零或对零取余。', context: 'sensitivity', range: { start: 1, end: 6 },
+      variables: { currentFans: 1000, attackerWon: true },
+    })
+    expect(structuredClone(dto)).toEqual(dto)
+    expect(normalizeFormulaError({ ...error, phase: { toString: () => 'runtime' } }, 'monte-carlo')).toBeUndefined()
+    expect(normalizeFormulaError({ ...error, code: 'INTERNAL' }, 'monte-carlo')).toBeUndefined()
+  })
+  it('posts formula DTOs with analysis context and sanitizes unknown failures', async () => {
+    let receive!: (event: MessageEvent<WorkerRequest>) => Promise<void>
+    const responses: WorkerResponse[] = []
+    vi.stubGlobal('self', {
+      addEventListener: (_type: string, listener: typeof receive) => { receive = listener },
+      postMessage: (response: WorkerResponse) => { responses.push(structuredClone(response)) },
+    })
+    try {
+      await import('../monteCarlo.worker')
+      for (const type of ['run', 'sensitivity'] as const) {
+        const scenario = createFormulaScenario()
+        scenario.battle.formulas = { ...scenario.battle.formulas, preRandomPower: '1 / 0' }
+        const request: WorkerRequest = type === 'run'
+          ? { type, runId: type, scenario, runs: 1, seed: 11 }
+          : { type, runId: type, scenario, request: {
+              parameter: 'battle.beta', metric: 'battleThreeWinProbability', min: 1, max: 1, step: 1,
+              targetGuildId: 'B', runs: 1, seed: 11,
+            } }
+        await receive({ data: request } as MessageEvent<WorkerRequest>)
+        expect(responses.at(-1)).toMatchObject({ type: 'error', runId: type,
+          error: { kind: 'formula', formulaId: 'preRandomPower', code: 'DIVIDE_BY_ZERO', context: type === 'run' ? 'monte-carlo' : 'sensitivity' },
+        })
+        expect(JSON.stringify(responses.at(-1))).not.toMatch(/stack|source|\[object Object\]/)
+      }
+      const scenario = createFormulaScenario()
+      scenario.simulation.maxEventsPerDay = 0
+      await receive({ data: { type: 'run', runId: 'unknown', scenario, runs: 1, seed: 11 } } as MessageEvent<WorkerRequest>)
+      expect(responses.at(-1)).toEqual({ type: 'error', runId: 'unknown', message: '分析失败，请检查参数后重试。' })
+    } finally { vi.unstubAllGlobals() }
+  })
+})
 
 describe('Monte Carlo runner', () => {
+  it.each([0, 1])('uses constant probability %s in a cloned batch and compiles only once', async (probability) => {
+    const scenario = createFormulaScenario()
+    scenario.season.nodeCounts = { normal: 0, core: 1, center: 0 }
+    scenario.battle.formulas = { ...scenario.battle.formulas, winProbability: String(probability), fanLoss: 'currentFans' }
+    const compile = vi.spyOn(compiler, 'compileFormula')
+    try {
+      const result = await runTrials(structuredClone({ scenario, runs: 4, seed: 11 }))
+      const totalAttackScore = Object.values(result.guilds).reduce((sum, guild) => sum + guild.attackScoreSeries.at(-1)!.mean, 0)
+      expect(totalAttackScore).toBe(probability === 0 ? 3 : 20)
+      expect(compile.mock.calls.map(([id]) => id).sort()).toEqual(['displayedTendency', 'fanLoss', 'preRandomPower', 'winProbability'])
+    } finally { compile.mockRestore() }
+  })
+
+  it.each(['currentFans', '1 / 0'])('rejects %s with a clone-safe Monte Carlo formula error', async (winProbability) => {
+    const scenario = createFormulaScenario()
+    scenario.season.nodeCounts = { normal: 0, core: 1, center: 0 }
+    scenario.battle.formulas = { ...scenario.battle.formulas, winProbability }
+    const result = await runTrials({ scenario, runs: 1, seed: 11 }).then(() => null, (error: unknown) => error)
+    expect(result).toMatchObject({ kind: 'formula', formulaId: 'winProbability', context: 'monte-carlo' })
+    expect(structuredClone(result)).toEqual(result)
+    expect(result).not.toBeInstanceOf(Error)
+    expect(result).not.toHaveProperty('stack')
+  })
   it('preserves independent guild budgets through a cloned worker request and repeated trials', async () => {
     const scenario = createPurchaseScenario()
     scenario.guilds.push({ ...structuredClone(scenario.guilds[0]), id: 'B', name: 'B' })

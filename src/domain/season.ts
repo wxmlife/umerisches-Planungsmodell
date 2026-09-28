@@ -1,7 +1,7 @@
 import {
-  calculatePreRandomPower,
+  createBattleRuntime,
   resolveBattle,
-  uniformWinProbability,
+  type BattleRuntime,
   type CombatantInput,
 } from './battle'
 import {
@@ -268,6 +268,7 @@ export function runSeason(
   scenario: Scenario,
   rng: Rng,
   mode: SeasonMode,
+  runtime: BattleRuntime = createBattleRuntime(scenario.battle, mode === 'stochastic' ? 'monte-carlo' : 'deterministic'),
 ): SeasonResult {
   const endMinute = scenario.season.days * 1440
   const queue = new EventQueue<InternalEvent>()
@@ -285,6 +286,7 @@ export function runSeason(
   const spendEvents: SpendEvent[] = []
   const scheduledActionMinute = new Map<string, number>()
   const processedByDay = new Map<number, number>()
+  const garrisonPowers = new WeakMap<Garrison, { currentFans: number; power: number }>()
   let lastHoldingMinute = 0
   let eventCount = 0
   let termination: SeasonResult['termination'] = 'season-end'
@@ -377,6 +379,7 @@ export function runSeason(
     availableFans: number,
   ): TargetChoice | undefined => {
     const choices: TargetChoice[] = []
+    const attackerPowers = new Map<number, number>()
     for (const node of nodes) {
       if (!node.scoring || !node.unlocked) continue
       if (node.ownerGuildId === player.guildId || guild.priorities[node.kind] <= 0) continue
@@ -391,24 +394,31 @@ export function runSeason(
       )
       let captureProbability = 1
       if (node.garrison) {
-        const attackerPower = calculatePreRandomPower({
-          idolPower: player.idolPower,
-          initialFans: deployedFans,
-          currentFans: deployedFans,
-          styleMultiplier: 1,
-        }, scenario.battle)
-        const defenderPower = calculatePreRandomPower({
-          idolPower: node.garrison.idolPower,
-          initialFans: node.garrison.initialFans,
-          currentFans: node.garrison.currentFans,
-          styleMultiplier: 1,
-        }, scenario.battle)
-        captureProbability = uniformWinProbability(
-          attackerPower,
-          defenderPower,
-          scenario.battle.randomMin,
-          scenario.battle.randomMax,
-        )
+        let attackerPower = attackerPowers.get(deployedFans)
+        if (attackerPower === undefined) {
+          attackerPower = runtime.preRandomPower({
+            idolPower: player.idolPower,
+            initialFans: deployedFans,
+            currentFans: deployedFans,
+            styleMultiplier: 1,
+          })
+          attackerPowers.set(deployedFans, attackerPower)
+        }
+        // A garrison's idolPower and initialFans never change; currentFans is
+        // the only changing formula input during this season (neutral style).
+        const cached = garrisonPowers.get(node.garrison)
+        const defenderPower = cached?.currentFans === node.garrison.currentFans
+          ? cached.power
+          : runtime.preRandomPower({
+              idolPower: node.garrison.idolPower,
+              initialFans: node.garrison.initialFans,
+              currentFans: node.garrison.currentFans,
+              styleMultiplier: 1,
+            })
+        if (cached?.currentFans !== node.garrison.currentFans) {
+          garrisonPowers.set(node.garrison, { currentFans: node.garrison.currentFans, power: defenderPower })
+        }
+        captureProbability = runtime.winProbability(attackerPower, defenderPower)
       }
       choices.push({
         node,
@@ -636,6 +646,7 @@ export function runSeason(
         attackerInput,
         defenderInput,
         mode === 'deterministic' ? fixedRollRng() : rng,
+        runtime,
       )
       player.lostFans += outcome.attackerLoss
       defender.lostFans += outcome.defenderLoss

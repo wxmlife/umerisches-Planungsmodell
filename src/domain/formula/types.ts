@@ -91,6 +91,31 @@ export const VARIABLE_SCHEMAS: Readonly<Record<FormulaId, readonly VariableDefin
   fanLoss: schema('currentFans', 'attackerToDefenderPowerRatio', 'lossBandRate', 'sideLossFactor', ['attackerWon', 'boolean'], ['isDefender', 'boolean']),
 })
 
+// Reconstruct the transport DTO: never forward arbitrary messages, stacks,
+// non-finite variables, or extra exception fields across the Worker boundary.
+export function normalizeFormulaError(error: unknown, context: FormulaErrorContext): FormulaErrorDto | undefined {
+  if (!error || typeof error !== 'object') return undefined
+  const candidate = error as Record<string, unknown>
+  if (candidate.kind !== 'formula'
+    || typeof candidate.formulaId !== 'string' || !Object.hasOwn(VARIABLE_SCHEMAS, candidate.formulaId)
+    || typeof candidate.code !== 'string' || !Object.hasOwn(ERROR_MESSAGES, candidate.code)
+    || typeof candidate.phase !== 'string' || !['parse', 'typecheck', 'runtime', 'output'].includes(candidate.phase)) return undefined
+  const dto = formulaError(candidate.formulaId as FormulaId, candidate.phase as FormulaErrorPhase, candidate.code as FormulaErrorCode, undefined, context)
+  const range = candidate.range as SourceRange | undefined
+  if (range && Number.isInteger(range.start) && Number.isInteger(range.end) && range.start >= 0 && range.end >= range.start) {
+    dto.range = { start: range.start, end: range.end }
+  }
+  if (candidate.variables && typeof candidate.variables === 'object') {
+    dto.variables = {}
+    for (const { name, type } of VARIABLE_SCHEMAS[dto.formulaId]) {
+      const descriptor = Object.getOwnPropertyDescriptor(candidate.variables, name)
+      const value: unknown = descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined
+      if (typeof value === type && (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)))) dto.variables[name] = value
+    }
+  }
+  return dto
+}
+
 export const FUNCTION_SIGNATURES = Object.freeze({
   pow: Object.freeze([2, 2]), sqrt: Object.freeze([1, 1]), abs: Object.freeze([1, 1]),
   min: Object.freeze([2, 8]), max: Object.freeze([2, 8]), clamp: Object.freeze([3, 3]),

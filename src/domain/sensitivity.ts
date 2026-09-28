@@ -1,4 +1,4 @@
-import { buildAttritionSeries } from './battle'
+import { buildAttritionSeries, createBattleRuntime, type BattleRuntime } from './battle'
 import type { MonteCarloResult } from './aggregate'
 import type {
   NodeKind,
@@ -155,6 +155,7 @@ function buildPoint(
   request: SensitivityRequest,
   scenario: Scenario,
   monteCarlo: MonteCarloResult,
+  runtime: BattleRuntime,
 ): SensitivityPoint {
   const target = monteCarlo.guilds[request.targetGuildId]
   if (!target) throw new Error(`Unknown target guild: ${request.targetGuildId}`)
@@ -194,7 +195,7 @@ function buildPoint(
       : scenario.battle.calibrationStyle === 'attacker-disadvantage'
         ? 1 + scenario.battle.styleAdvantage
         : 1,
-  }).at(-1)?.actualWinProbability ?? 0
+  }, runtime).at(-1)?.actualWinProbability ?? 0
   const metricValue = request.metric === 'battleThreeWinProbability'
     ? battleThreeWinProbability
     : request.metric === 'finalScoreGap'
@@ -242,12 +243,14 @@ export async function runSensitivity(
   if (request.parameter === 'supply.versionUsdBudget' && !values.includes(0)) {
     const baseline = structuredClone(scenario)
     applyParameter(baseline, request.parameter, 0, tier, request.targetGuildId)
+    const runtime = createBattleRuntime(baseline.battle, 'sensitivity')
     const result = await runTrials(
       { scenario: baseline, runs: request.runs, seed: request.seed },
       { isCancelled: hooks.isCancelled },
+      runtime,
     )
     if (result.cancelled) return { request, points, cancelled: true }
-    zeroBudgetControl = buildPoint(0, request, baseline, result)
+    zeroBudgetControl = buildPoint(0, request, baseline, result, runtime)
   }
 
   for (let index = 0; index < values.length; index += 1) {
@@ -257,15 +260,17 @@ export async function runSensitivity(
     }
     const variant = structuredClone(scenario)
     applyParameter(variant, request.parameter, values[index], tier, request.targetGuildId)
+    const runtime = createBattleRuntime(variant.battle, 'sensitivity')
     const result = await runTrials(
       { scenario: variant, runs: request.runs, seed: request.seed + index },
       { isCancelled: hooks.isCancelled, onProgress: hooks.onProgress },
+      runtime,
     )
     if (result.cancelled) {
       cancelled = true
       break
     }
-    points.push(buildPoint(values[index], request, variant, result))
+    points.push(buildPoint(values[index], request, variant, result, runtime))
     hooks.onPointProgress?.(index + 1, values.length)
     if ((index + 1) % 5 === 0) await new Promise((resolve) => setTimeout(resolve, 0))
   }
