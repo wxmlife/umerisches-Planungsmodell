@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: process.env.VITE_BASE_PATH ?? '/',
   build: {
     chunkSizeWarningLimit: 850,
   },
