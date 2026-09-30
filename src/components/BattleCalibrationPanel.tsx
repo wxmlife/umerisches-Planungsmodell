@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { buildBattleOption } from '../charts/options'
 import { DEFAULT_SCENARIO } from '../domain/defaults'
 import type { Scenario, ValidationResult } from '../domain/types'
@@ -6,6 +6,7 @@ import { buildCalibration, type CalibrationResult } from '../state/scenarioLifec
 import { BattleFormulaEditor, type BattleFormulaEditorProps } from './BattleFormulaEditor'
 import { BattleQuickControls } from './BattleQuickControls'
 import { EChart } from './EChart'
+import { buildBattleDetail, type BattleDetailRow } from '../domain/battleDetail'
 
 const EMPTY_CALIBRATION: CalibrationResult = { equalFans: [], doubleFans: [] }
 
@@ -48,6 +49,10 @@ export function BattleCalibrationPanel({
     () => buildBattleOption(equalFans, doubleFans),
     [equalFans, doubleFans],
   )
+  const [detailCase, setDetailCase] = useState<'case1' | 'case2'>('case1')
+  const detailRows = useMemo(() => detailCase === 'case1'
+    ? buildBattleDetail({ attackerIdolPower: 100_000, defenderIdolPower: 400_000, attackerInitialFans: 1_000, defenderInitialFans: 1_000, seed: scenario.simulation.seed })
+    : buildBattleDetail({ attackerIdolPower: 100_000, defenderIdolPower: 300_000, attackerInitialFans: 2_000, defenderInitialFans: 1_000, seed: scenario.simulation.seed + 1 }), [detailCase, scenario.simulation.seed])
 
   const table = (label: string, rows: typeof equalFans) => (
     <table className="compact-table">
@@ -91,6 +96,28 @@ export function BattleCalibrationPanel({
         {table('2,000 vs 1,000', doubleFans.slice(0, 2))}
       </div>
       </div>
+      <div className="battle-detail" aria-labelledby="battle-detail-title">
+        <div className="battle-detail-header">
+          <div><p className="eyebrow">ROUND DETAIL</p><h3 id="battle-detail-title">5 位 IDOL × 5 轮对决明细</h3></div>
+          <label className="select-control">表格案例<select value={detailCase} onChange={(event) => setDetailCase(event.target.value as 'case1' | 'case2')}>
+            <option value="case1">Case1：同粉丝（100,000 vs 400,000）</option>
+            <option value="case2">Case2：攻方粉丝翻倍（100,000 vs 300,000）</option>
+          </select></label>
+        </div>
+        <p className="scope-note">逐轮按 5 个 IDOL 独立抽取攻方克制 / 无克制 / 守方克制，再合成战力、计算胜率和双方粉丝损耗。随机种子来自当前模拟方案，改参数后明细会同步刷新。</p>
+        <DetailTable rows={detailRows} />
+      </div>
     </section>
   )
+}
+
+function DetailTable({ rows }: { rows: BattleDetailRow[] }) {
+  return <div className="table-scroll"><table className="compact-table battle-detail-table">
+    <thead><tr><th>轮次</th><th>攻方粉丝→损耗</th><th>守方粉丝→损耗</th><th>攻方战力</th><th>守方战力</th><th>显示倾向</th><th>真实胜率</th><th>结果</th><th>IDOL1</th><th>IDOL2</th><th>IDOL3</th><th>IDOL4</th><th>IDOL5</th></tr></thead>
+    <tbody>{rows.map((row) => <tr key={row.round}>
+      <td>{row.round}</td><td>{row.attackerFans.toLocaleString('zh-CN')} → -{row.attackerLoss}</td><td>{row.defenderFans.toLocaleString('zh-CN')} → -{row.defenderLoss}</td>
+      <td>{Math.round(row.attackerPower).toLocaleString('zh-CN')}</td><td>{Math.round(row.defenderPower).toLocaleString('zh-CN')}</td><td>{percent(row.displayedTendency)}</td><td>{percent(row.actualWinProbability)}</td>
+      <td>{row.attackerWon ? '攻方胜' : '守方胜'}</td>{row.idolMatchups.map((status, index) => <td key={index} title={`抽样值 ${row.idolRolls[index].toFixed(3)}`}>{status.replace('克制', '')}</td>)}
+    </tr>)}</tbody>
+  </table></div>
 }
