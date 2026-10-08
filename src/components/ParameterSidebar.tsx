@@ -118,7 +118,7 @@ export function ParameterSidebar({
       </header>
 
       <CollapsibleSection title="战斗" defaultOpen>
-        {control('battle.baseIdolPower', '普通玩家五人原始战力', scenario.battle.baseIdolPower, 1, 2_000_000, 1000)}
+        {control('battle.baseIdolPower', '普通玩家5位IDOL原始战力', scenario.battle.baseIdolPower, 1, 2_000_000, 1000)}
         {control('battle.tierMultipliers.normal', '普通档战力倍率', scenario.battle.tierMultipliers.normal, 0.1, 20, 0.1)}
         {control('battle.tierMultipliers.small', '小 R 战力倍率', scenario.battle.tierMultipliers.small, 0.1, 20, 0.1)}
         {control('battle.tierMultipliers.whale', '大 R 战力倍率', scenario.battle.tierMultipliers.whale, 0.1, 20, 0.1)}

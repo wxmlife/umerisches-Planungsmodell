@@ -12,7 +12,7 @@ export function BattleQuickControls({ scenario, validation, onSetNumber, onSetSt
   const { battle } = scenario
   const control = (path: string, label: string, value: number, min: number, max: number, step: number) => <NumberSlider key={path} idPrefix="battle-quick" path={path} label={label} value={value} min={min} max={max} step={step} onChange={onSetNumber} error={validation.issues.find(issue => issue.path === path || path.startsWith(`${issue.path}.`))?.message} />
   return <div className="battle-quick-controls">
-    {control('battle.baseIdolPower', '普通玩家五人原始战力', battle.baseIdolPower, 1, 2_000_000, 1000)}
+    {control('battle.baseIdolPower', '普通玩家5位IDOL原始战力', battle.baseIdolPower, 1, 2_000_000, 1000)}
     {control('battle.tierMultipliers.small', '小 R 战力倍率', battle.tierMultipliers.small, 0.1, 20, 0.1)}
     {control('battle.tierMultipliers.whale', '大 R 战力倍率', battle.tierMultipliers.whale, 0.1, 20, 0.1)}
     {control('battle.alpha', '初始粉丝指数 α', battle.alpha, 0, 4, 0.01)}
